@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>축제 보물찾기</title>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700;900&family=Jua&family=Do+Hyeon&family=Gasoek+One&family=Gugi&family=Dokdo&family=East+Sea+Dokdo&family=Gamja+Flower&family=Hi+Melody&family=Poor+Story&family=Single+Day&family=Sunflower:wght@500;700&family=Yeon+Sung&family=Gothic+A1:wght@700;900&family=Song+Myung&family=Nanum+Pen+Script&family=Nanum+Brush+Script&family=Orbit&family=Bagel+Fat+One&family=Dongle:wght@700&family=IBM+Plex+Sans+KR:wght@400;700&family=Noto+Serif+KR:wght@400;700&family=Hahmlet:wght@400;700&family=Gowun+Dodum&family=Gowun+Batang&family=Stylish&family=Cute+Font&family=Kirang+Haerang&family=Black+And+White+Picture&family=Nanum+Gothic:wght@700;800&family=Nanum+Myeongjo:wght@700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root{--primary:#FFD700;--primary-rgb:255,215,0;--secondary:#FF6B6B;--secondary-rgb:255,107,107;--accent:#6C5CE7;--accent-rgb:108,92,231;--bg-start:#1a1a2e;--bg-mid:#16213e;--bg-end:#0f3460;--card-bg:rgba(255,255,255,0.06);--card-border:rgba(255,255,255,0.1);--text:#fff;--text-muted:rgba(255,255,255,0.6);--text-dim:rgba(255,255,255,0.35);--font-display:'Black Han Sans',sans-serif;--font-body:'Noto Sans KR',sans-serif;--mission-1:#FF6B6B;--mission-2:#4ECDC4;--mission-3:#FFD93D;--mission-4:#6C5CE7;--mission-5:#FF8A5B;--mission-6:#EA4C89;--mission-7:#00B894;--mission-8:#FDCB6E;--mission-9:#E17055;--mission-10:#0984E3;--success:#4CAF50;--error:#FF6B6B;--btn-text:#1a1a2e}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{overflow-x:hidden;overscroll-behavior:none}
+body{font-family:var(--font-body);background:linear-gradient(135deg,var(--bg-start),var(--bg-mid),var(--bg-end));color:var(--text);min-height:100vh;min-height:100dvh}
+input,textarea,button,select{font-family:var(--font-body);-webkit-appearance:none}
+#bg-layer{position:fixed;inset:0;z-index:0;pointer-events:none;background-size:cover;background-position:center;opacity:0;transition:opacity .5s}
+#bg-overlay{position:fixed;inset:0;z-index:0;pointer-events:none}
+#deco-layer{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden}
+.deco-img{position:absolute;pointer-events:none}
+@keyframes decoFloat{0%,100%{transform:translateY(0) var(--deco-extra,)}50%{transform:translateY(-15px) var(--deco-extra,)}}
+@keyframes decoSpin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+@keyframes decoPulse{0%,100%{opacity:var(--deco-op,.7);transform:scale(1)}50%{opacity:1;transform:scale(1.12)}}
+@keyframes decoSwing{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(8deg)}}
+@keyframes decoBounce{0%,100%{transform:translateY(0)}30%{transform:translateY(-18px)}50%{transform:translateY(-8px)}70%{transform:translateY(-14px)}}
+@keyframes decoFadeLoop{0%,100%{opacity:.3}50%{opacity:var(--deco-op,.7)}}
+.deco-float{animation:decoFloat 4s ease-in-out infinite}
+.deco-spin{animation:decoSpin 8s linear infinite}
+.deco-pulse{animation:decoPulse 3s ease-in-out infinite}
+.deco-swing{animation:decoSwing 3s ease-in-out infinite;transform-origin:top center}
+.deco-bounce{animation:decoBounce 2s ease-in-out infinite}
+.deco-fadeloop{animation:decoFadeLoop 4s ease-in-out infinite}
+.page{display:none;min-height:100vh;min-height:100dvh;padding:20px;flex-direction:column;position:relative;z-index:2}
+.page.active{display:flex}
+.center{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;flex:1}
+.title{font-family:var(--font-display)}
+.gold{background:linear-gradient(135deg,var(--primary),var(--secondary));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.title-solid{-webkit-text-fill-color:currentColor!important;background:none!important}
+.btn{border:none;border-radius:14px;cursor:pointer;font-weight:900;transition:all .2s;-webkit-user-select:none}
+.btn:active{transform:scale(.97)}
+.btn-gold{background:linear-gradient(135deg,var(--primary),var(--secondary));color:var(--btn-text);padding:18px;font-size:18px;width:100%}
+.btn-ghost{background:rgba(255,255,255,.08);color:var(--text-muted);border:1px solid rgba(255,255,255,.12);padding:12px 24px;font-size:14px}
+.btn-accent{background:linear-gradient(135deg,var(--accent),rgba(var(--accent-rgb),.7));color:#fff;padding:16px;font-size:16px;width:100%}
+.btn-sm{padding:8px 16px;font-size:13px;border-radius:10px}
+.btn-xs{padding:4px 10px;font-size:11px;border-radius:8px}
+.btn-danger{background:rgba(255,107,107,.15);color:#FF6B6B;border:1px solid rgba(255,107,107,.3);padding:12px 24px;font-size:14px}
+.inp{width:100%;padding:14px 16px;font-size:15px;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.12);border-radius:12px;color:#fff;outline:none}
+.inp:focus{border-color:rgba(var(--primary-rgb),.5)}
+.inp-sm{padding:10px 12px;font-size:14px}
+.inp-xs{padding:6px 8px;font-size:12px}
+select.inp{cursor:pointer}
+.card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:16px;padding:20px}
+.err-box{margin-top:12px;padding:12px 16px;background:rgba(255,107,107,.15);border:1px solid rgba(255,107,107,.3);border-radius:12px;color:#FF6B6B;font-size:14px;text-align:center}
+.divider{height:1px;background:rgba(255,255,255,.08);margin:16px 0}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+@keyframes glow{0%,100%{box-shadow:0 0 20px rgba(var(--primary-rgb),.3)}50%{box-shadow:0 0 40px rgba(var(--primary-rgb),.7)}}
+@keyframes bounceIn{0%{opacity:0;transform:scale(.3)}50%{transform:scale(1.05)}100%{opacity:1;transform:scale(1)}}
+@keyframes confetti{0%{transform:translateY(-100vh) rotate(0);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
+@keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+@keyframes sparkle{0%{opacity:0;transform:scale(0) rotate(0)}50%{opacity:1;transform:scale(1) rotate(180deg)}100%{opacity:0;transform:scale(0) rotate(360deg)}}
+@keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.float{animation:float 3s ease-in-out infinite}.glow{animation:glow 2s ease-in-out infinite}.bounce{animation:bounceIn .6s ease-out}.shake{animation:shake .4s ease-in-out}.fadeIn{animation:fadeIn .4s ease-out}
+.scanning-spinner{display:inline-block;width:20px;height:20px;border:3px solid rgba(var(--primary-rgb),.3);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:8px}
+.confetti-wrap{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:999}
+.confetti-piece{position:absolute;top:-20px;animation:confetti 3s linear infinite}
+.sparkle-wrap{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.sparkle-piece{position:absolute;animation:sparkle 2s ease-in-out infinite}
+.mission-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.mission-card{border-radius:18px;padding:20px 14px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;cursor:pointer;transition:all .2s;position:relative;min-height:155px}
+.mission-card:active:not(.done){transform:scale(.97)}
+.mission-card.done{cursor:default;opacity:.85}
+.done-badge{position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900}
+.progress-dot{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px}
+.progress-dot.completed{background:linear-gradient(135deg,#4CAF50,#2E7D32);border:2px solid #4CAF50}
+.progress-dot.pending{background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.1)}
+.admin-tabs{display:flex;gap:6px;margin-bottom:20px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.admin-tabs::-webkit-scrollbar{display:none}
+.tab-btn{flex-shrink:0;padding:9px 14px;font-size:12px;border-radius:10px;cursor:pointer;white-space:nowrap;border:none;font-weight:700}
+.tab-btn.active{background:rgba(var(--accent-rgb),.25);color:rgb(var(--accent-rgb));border:1px solid rgba(var(--accent-rgb),.4)}
+.tab-btn.inactive{background:rgba(255,255,255,.05);color:rgba(255,255,255,.4);border:1px solid rgba(255,255,255,.08)}
+.admin-section{display:none;flex-direction:column;gap:16px;flex:1;animation:fadeIn .3s}
+.admin-section.active{display:flex}
+.admin-label{display:block;margin-bottom:6px;font-size:13px;font-weight:700;color:rgba(255,255,255,.7)}
+.admin-group{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:16px}
+.theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(95px,1fr));gap:10px}
+.theme-card{border-radius:14px;padding:12px 8px;text-align:center;cursor:pointer;border:2px solid transparent;transition:all .15s}
+.theme-card:active{transform:scale(.96)}
+.theme-card.selected{border-color:var(--primary);box-shadow:0 0 20px rgba(var(--primary-rgb),.3)}
+.theme-card .preview{width:100%;height:36px;border-radius:8px;margin-bottom:6px}
+.color-row{display:flex;align-items:center;gap:10px;padding:8px 0}
+.color-row label{font-size:12px;color:var(--text-dim);min-width:60px}
+.color-inp{width:44px;height:44px;border:2px solid rgba(255,255,255,.2);border-radius:10px;cursor:pointer;padding:2px;background:transparent;flex-shrink:0}
+.color-inp::-webkit-color-swatch{border:none;border-radius:8px}
+.color-inp::-webkit-color-swatch-wrapper{padding:0}
+.font-option{padding:12px 14px;border-radius:12px;cursor:pointer;border:2px solid transparent;margin-bottom:6px;background:rgba(255,255,255,.04);transition:all .15s}
+.font-option:active{transform:scale(.98)}
+.font-option.selected{border-color:var(--primary);background:rgba(var(--primary-rgb),.1)}
+.font-cat-title{font-size:11px;font-weight:900;color:var(--primary);padding:8px 0 4px;text-transform:uppercase;letter-spacing:1px}
+.upload-zone{border:2px dashed rgba(255,255,255,.15);border-radius:14px;padding:24px 16px;text-align:center;cursor:pointer;position:relative;overflow:hidden;transition:border-color .2s}
+.upload-zone:hover{border-color:rgba(var(--primary-rgb),.4)}
+.upload-preview{width:100%;max-height:200px;object-fit:contain;border-radius:10px;margin-top:10px}
+.deco-admin-card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px;display:flex;gap:10px;align-items:flex-start;margin-bottom:10px}
+.deco-admin-card img{width:56px;height:56px;object-fit:contain;border-radius:8px;background:rgba(255,255,255,.06);flex-shrink:0}
+.deco-ctrl{display:flex;gap:6px;flex-wrap:wrap}
+.deco-ctrl select,.deco-ctrl input[type=range]{height:28px;font-size:10px}
+.pt-row{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.mini-dot{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;margin-left:3px}
+.qr-card{background:#fff;border-radius:14px;padding:16px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.qr-card img{width:200px;height:200px}
+video{width:100%;height:100%;object-fit:cover}
+.stat-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:16px;text-align:center;flex:1}
+.stat-num{font-size:28px;font-weight:900;font-family:var(--font-display)}
+.toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);padding:12px 24px;border-radius:12px;font-size:14px;font-weight:700;z-index:1000;animation:slideUp .3s ease-out;pointer-events:none;white-space:nowrap}
+.toast-ok{background:rgba(76,175,80,.9);color:#fff}.toast-err{background:rgba(255,107,107,.9);color:#fff}
+.toggle-row{display:flex;align-items:center;gap:10px;padding:6px 0}
+.toggle{position:relative;width:44px;height:24px;background:rgba(255,255,255,.15);border-radius:12px;cursor:pointer;transition:background .2s;flex-shrink:0}
+.toggle.on{background:var(--primary)}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s}
+.toggle.on::after{transform:translateX(20px)}
+.xy-grid{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6px;align-items:center;font-size:11px;color:var(--text-dim)}
+.xy-grid input[type=range]{width:100%}
+
+/* ── 관리자 진입 버튼 (우측 상단, 초소형) ── */
+.admin-corner-btn{position:fixed;top:12px;right:12px;z-index:50;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:.2;transition:opacity .3s;font-size:11px;color:rgba(255,255,255,.3)}
+.admin-corner-btn:hover,.admin-corner-btn:active{opacity:.7}
+
+/* ── 홈 하단 로고 영역 ── */
+.home-logo-area{display:flex;flex-direction:column;align-items:center;gap:8px;padding:20px 0 10px;opacity:.7}
+.home-logo-area img{max-height:50px;max-width:200px;object-fit:contain}
+.home-logo-area .logo-text{font-size:11px;color:var(--text-dim);letter-spacing:1px}
+
+@media(max-width:360px){.mission-grid{gap:10px}.mission-card{min-height:140px;padding:16px 10px}.page{padding:16px}}
+@media(min-width:768px){.page{max-width:600px;margin:0 auto}.mission-grid{grid-template-columns:repeat(3,1fr)}}
+@media print{body{background:#fff!important}#bg-layer,#bg-overlay,#deco-layer,.admin-corner-btn{display:none!important}}
+</style>
+</head>
+<body>
+<div id="bg-layer"></div><div id="bg-overlay"></div><div id="deco-layer"></div>
+
+<!-- 관리자 버튼: 우측 상단 초소형 아이콘 -->
+<div class="admin-corner-btn" id="admin-corner" onclick="showAdminLogin()" title="관리자">⚙</div>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   축제 보물찾기 대모험 v4 — 관리자 버튼 & 로고
+   ═══════════════════════════════════════════════════ */
+var db=null,useFirebase=false;
+var DEFAULT_CONFIG={festivalName:"보물찾기 대모험",festivalSub:"숨겨진 보물을 모두 찾아라!",festivalIcon:"🗺️",adminPw:"1234",theme:"treasure",
+customColors:{primary:"#FFD700",secondary:"#FF6B6B",accent:"#6C5CE7",bgStart:"#1a1a2e",bgMid:"#16213e",bgEnd:"#0f3460"},
+colorOverride:{enabled:false,primary:"",secondary:"",accent:"",bgStart:"",bgMid:"",bgEnd:""},
+fontDisplay:"'Black Han Sans'",fontBody:"'Noto Sans KR'",
+titleColor:"",textColor:"",btnTextColor:"",
+bgImage:"",bgOverlay:"rgba(0,0,0,0.3)",bgBlend:"normal",bgFit:"cover",bgFixed:true,
+decorations:[],
+logoImage:"",logoImage2:"",logoText:"대전광역시 · 대전관광공사",
+missionCount:4,missions:[
+{name:"첫 번째 보물",hint:"관리자가 힌트를 설정해주세요",emoji:"🗝️",code:""},
+{name:"두 번째 보물",hint:"관리자가 힌트를 설정해주세요",emoji:"💎",code:""},
+{name:"세 번째 보물",hint:"관리자가 힌트를 설정해주세요",emoji:"👑",code:""},
+{name:"네 번째 보물",hint:"관리자가 힌트를 설정해주세요",emoji:"🏆",code:""}],
+rewardTitle:"축하합니다! 🎉",rewardDesc:"모든 보물을 찾으면 특별한 선물이 기다리고 있어요!\n관리자에게 완료 화면을 보여주세요!"};
+
+var THEMES={
+treasure:{name:"🏴‍☠️ 보물섬",primary:"#FFD700",secondary:"#FF6B6B",accent:"#6C5CE7",bgStart:"#1a1a2e",bgMid:"#16213e",bgEnd:"#0f3460"},
+space:{name:"🚀 우주탐험",primary:"#A78BFA",secondary:"#818CF8",accent:"#F472B6",bgStart:"#0f0524",bgMid:"#1a0a3e",bgEnd:"#2d1b69"},
+forest:{name:"🌲 숲속모험",primary:"#A3E635",secondary:"#4ADE80",accent:"#FB923C",bgStart:"#0a1f0a",bgMid:"#14351d",bgEnd:"#1a4731"},
+ocean:{name:"🌊 바다축제",primary:"#22D3EE",secondary:"#38BDF8",accent:"#F9A8D4",bgStart:"#042f3b",bgMid:"#064e6e",bgEnd:"#0369a1"},
+circus:{name:"🎪 서커스",primary:"#F97316",secondary:"#EF4444",accent:"#FACC15",bgStart:"#2a0a0a",bgMid:"#4a1515",bgEnd:"#5c1a1a"},
+spring:{name:"🌸 봄꽃축제",primary:"#F9A8D4",secondary:"#F472B6",accent:"#A78BFA",bgStart:"#2d1029",bgMid:"#3d1a3a",bgEnd:"#4a1f4a"},
+halloween:{name:"🎃 할로윈",primary:"#FB923C",secondary:"#F97316",accent:"#A855F7",bgStart:"#1a0f00",bgMid:"#2d1a00",bgEnd:"#0d0d0d"},
+winter:{name:"❄️ 겨울왕국",primary:"#BAE6FD",secondary:"#7DD3FC",accent:"#C4B5FD",bgStart:"#0c1929",bgMid:"#1e3a5f",bgEnd:"#172554"},
+neon:{name:"💜 네온시티",primary:"#E879F9",secondary:"#22D3EE",accent:"#A3E635",bgStart:"#09090b",bgMid:"#18181b",bgEnd:"#1c1026"},
+retro:{name:"🕹️ 레트로",primary:"#FFE66D",secondary:"#FF6B6B",accent:"#4ECDC4",bgStart:"#2C3E50",bgMid:"#34495E",bgEnd:"#1a252f"},
+sunset:{name:"🌅 석양",primary:"#FF9A76",secondary:"#FECA57",accent:"#FF6348",bgStart:"#2d1b2e",bgMid:"#5c2d3e",bgEnd:"#1a0a1e"},
+candy:{name:"🍭 캔디팝",primary:"#FF78CB",secondary:"#FFE156",accent:"#78E0FF",bgStart:"#1f0a2e",bgMid:"#2e0a3e",bgEnd:"#3e0a4e"},
+custom:{name:"🎨 커스텀",primary:"#FFD700",secondary:"#FF6B6B",accent:"#6C5CE7",bgStart:"#1a1a2e",bgMid:"#16213e",bgEnd:"#0f3460"}
+};
+
+var FONT_DISPLAY_OPTIONS=[
+{cat:"임팩트",fonts:[
+{v:"'Black Han Sans'",l:"블랙한산스",s:"두꺼운 고딕체"},
+{v:"'Gasoek One'",l:"가속원",s:"굵은 제목체"},
+{v:"'Bagel Fat One'",l:"베이글팻원",s:"둥근 팝체"},
+{v:"'Kirang Haerang'",l:"기랑해랑",s:"개성 강한 붓체"},
+{v:"'Black And White Picture'",l:"흑백사진",s:"독특한 장식체"}
+]},
+{cat:"귀여운",fonts:[
+{v:"'Jua'",l:"주아",s:"동글동글 귀여운체"},
+{v:"'Gamja Flower'",l:"감자꽃",s:"손글씨 귀여운체"},
+{v:"'Hi Melody'",l:"하이멜로디",s:"밝고 경쾌한"},
+{v:"'Cute Font'",l:"큐트폰트",s:"사랑스러운 느낌"},
+{v:"'Dongle'",l:"동글",s:"가벼운 둥근체"}
+]},
+{cat:"감성/손글씨",fonts:[
+{v:"'Dokdo'",l:"독도",s:"힘 있는 붓글씨"},
+{v:"'East Sea Dokdo'",l:"동해독도",s:"자유로운 붓터치"},
+{v:"'Nanum Pen Script'",l:"나눔펜",s:"펜으로 쓴 느낌"},
+{v:"'Nanum Brush Script'",l:"나눔붓",s:"붓으로 쓴 느낌"},
+{v:"'Yeon Sung'",l:"연성",s:"부드러운 손글씨"},
+{v:"'Poor Story'",l:"푸어스토리",s:"동화 같은 느낌"},
+{v:"'Single Day'",l:"싱글데이",s:"심플한 손글씨"},
+{v:"'Stylish'",l:"스타일리쉬",s:"세련된 손글씨"}
+]},
+{cat:"깔끔한/모던",fonts:[
+{v:"'Do Hyeon'",l:"도현",s:"둥근 깔끔체"},
+{v:"'Gugi'",l:"구기",s:"독특한 모던체"},
+{v:"'Orbit'",l:"오르빗",s:"미래적 느낌"},
+{v:"'Sunflower'",l:"해바라기",s:"밝고 깨끗한"},
+{v:"'Gothic A1'",l:"고딕A1",s:"기본 깔끔한 고딕"},
+{v:"'Gowun Dodum'",l:"고운돋움",s:"부드러운 돋움"},
+{v:"'IBM Plex Sans KR'",l:"IBM플렉스",s:"전문적인 산스"},
+{v:"'Nanum Gothic'",l:"나눔고딕",s:"대표적 한글 고딕"}
+]},
+{cat:"전통/명조",fonts:[
+{v:"'Song Myung'",l:"송명",s:"전통 명조체"},
+{v:"'Noto Serif KR'",l:"노토세리프",s:"격조 있는 세리프"},
+{v:"'Hahmlet'",l:"함렛",s:"세련된 명조"},
+{v:"'Gowun Batang'",l:"고운바탕",s:"부드러운 바탕"},
+{v:"'Nanum Myeongjo'",l:"나눔명조",s:"클래식 명조"}
+]}
+];
+
+var FONT_BODY_OPTIONS=[
+{v:"'Noto Sans KR'",l:"노토산스 (기본)"},{v:"'Gothic A1'",l:"고딕A1"},{v:"'Jua'",l:"주아"},
+{v:"'Gamja Flower'",l:"감자꽃"},{v:"'Sunflower'",l:"해바라기"},{v:"'Poor Story'",l:"푸어스토리"},
+{v:"'Orbit'",l:"오르빗"},{v:"'Dongle'",l:"동글"},{v:"'Gowun Dodum'",l:"고운돋움"},
+{v:"'IBM Plex Sans KR'",l:"IBM플렉스"},{v:"'Nanum Gothic'",l:"나눔고딕"},{v:"'Gowun Batang'",l:"고운바탕"},
+{v:"'Noto Serif KR'",l:"노토세리프"},{v:"'Hahmlet'",l:"함렛"},{v:"'Nanum Myeongjo'",l:"나눔명조"}
+];
+
+var DECO_ANIMS=[{v:"none",l:"없음"},{v:"deco-float",l:"둥둥"},{v:"deco-spin",l:"회전"},{v:"deco-pulse",l:"깜빡"},{v:"deco-swing",l:"흔들흔들"},{v:"deco-bounce",l:"통통"},{v:"deco-fadeloop",l:"페이드"}];
+var EMOJI_LIST=["🗝️","💎","👑","🏆","⭐","🎯","🔮","🎪","🌟","🎁","🦄","🐉","🎵","🍀","💫","🔥","❄️","🌈","🎭","🎨"];
+
+var config=null,player=null,completed=[],scanTarget=0,cameraStream=null,scanInterval=null;
+
+function generateCode(){var c="ABCDEFGHJKLMNPQRSTUVWXYZ23456789",s="HUNT-";for(var i=0;i<4;i++)s+=c[Math.floor(Math.random()*c.length)];return s}
+function generateQRDataURL(t){if(typeof qrcode==="undefined")return"";var q=qrcode(0,"M");q.addData(t);q.make();var m=q.getModuleCount(),cs=Math.floor(400/m),mg=40,sz=m*cs+mg*2,cv=document.createElement("canvas");cv.width=sz;cv.height=sz;var ctx=cv.getContext("2d");ctx.fillStyle="#FFF";ctx.fillRect(0,0,sz,sz);ctx.fillStyle="#000";for(var r=0;r<m;r++)for(var c=0;c<m;c++)if(q.isDark(r,c))ctx.fillRect(mg+c*cs,mg+r*cs,cs,cs);return cv.toDataURL("image/png")}
+function scanQRFromImage(img){return new Promise(function(res){if(typeof jsQR==="undefined"){res(null);return}try{var cv=document.createElement("canvas"),ctx=cv.getContext("2d"),w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;if(!w||!h){res(null);return}var sc=Math.min(1000/Math.max(w,h),1);cv.width=Math.round(w*sc);cv.height=Math.round(h*sc);ctx.drawImage(img,0,0,cv.width,cv.height);var id=ctx.getImageData(0,0,cv.width,cv.height),code=jsQR(id.data,cv.width,cv.height,{inversionAttempts:"attemptBoth"});if(code&&code.data){res(code.data);return}ctx.drawImage(img,0,0,cv.width,cv.height);var d2=ctx.getImageData(0,0,cv.width,cv.height),dd=d2.data;for(var i=0;i<dd.length;i+=4)for(var c=0;c<3;c++){var v=((dd[i+c]/255-.5)*1.8+.5)*255;dd[i+c]=Math.max(0,Math.min(255,v))|0}ctx.putImageData(d2,0,0);var id2=ctx.getImageData(0,0,cv.width,cv.height),c2=jsQR(id2.data,cv.width,cv.height,{inversionAttempts:"attemptBoth"});res(c2&&c2.data?c2.data:null)}catch(e){res(null)}})}
+function hexToRgb(h){if(!h||h[0]!=="#")return"255,255,255";return parseInt(h.slice(1,3),16)+","+parseInt(h.slice(3,5),16)+","+parseInt(h.slice(5,7),16)}
+function toast(m,t){var e=document.createElement("div");e.className="toast toast-"+(t||"ok");e.textContent=m;document.body.appendChild(e);setTimeout(function(){e.style.opacity="0";e.style.transition="opacity .3s";setTimeout(function(){e.remove()},300)},2500)}
+function makeConfetti(c){var cols=["#FF6B6B","#4ECDC4","#FFD93D","#6C5CE7","#FF8A5B","#EA4C89"],h="";for(var i=0;i<40;i++)h+='<div class="confetti-piece" style="left:'+Math.random()*100+"%;width:"+(8+Math.random()*8)+"px;height:"+(8+Math.random()*8)+"px;background:"+cols[i%6]+";border-radius:"+(Math.random()>.5?"50%":"2px")+";animation-duration:"+(2+Math.random()*3)+"s;animation-delay:"+Math.random()*2+'s"></div>';c.innerHTML=h}
+function makeSparkles(c,n){var h="";for(var i=0;i<(n||6);i++)h+='<div class="sparkle-piece" style="left:'+(10+Math.random()*80)+"%;top:"+(10+Math.random()*80)+"%;font-size:"+(12+Math.random()*16)+"px;animation-duration:"+(1.5+Math.random()*2)+"s;animation-delay:"+Math.random()*3+'s">✨</div>';c.innerHTML=h}
+function formatDate(d){if(!d)return"";var dt=typeof d==="string"?new Date(d):d.toDate?d.toDate():new Date(d);return dt.getFullYear()+"."+(""+(dt.getMonth()+1)).padStart(2,"0")+"."+(""+(dt.getDate())).padStart(2,"0")+" "+(""+(dt.getHours())).padStart(2,"0")+":"+(""+(dt.getMinutes())).padStart(2,"0")}
+function fileToBase64(file,maxKB){return new Promise(function(res){var r=new FileReader();r.onload=function(e){if(!maxKB||file.size<=maxKB*1024){res(e.target.result);return}var img=new Image();img.onload=function(){var cv=document.createElement("canvas"),ratio=Math.sqrt((maxKB*1024)/file.size);cv.width=Math.round(img.width*ratio);cv.height=Math.round(img.height*ratio);cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);res(cv.toDataURL("image/png",0.8))};img.src=e.target.result};r.readAsDataURL(file)})}
+
+/* ═══ THEME ENGINE ═══ */
+function getEffectiveColors(){
+  var base=config.theme==="custom"?config.customColors:(THEMES[config.theme]||THEMES.treasure);
+  var ov=config.colorOverride||{};
+  if(!ov.enabled) return base;
+  return {
+    primary:ov.primary||base.primary,secondary:ov.secondary||base.secondary,
+    accent:ov.accent||base.accent,bgStart:ov.bgStart||base.bgStart,
+    bgMid:ov.bgMid||base.bgMid,bgEnd:ov.bgEnd||base.bgEnd
+  };
+}
+function applyTheme(cfg){cfg=cfg||config;if(!cfg)return;
+  var t=getEffectiveColors();
+  var r=document.documentElement.style;
+  r.setProperty("--primary",t.primary);r.setProperty("--primary-rgb",hexToRgb(t.primary));
+  r.setProperty("--secondary",t.secondary);r.setProperty("--secondary-rgb",hexToRgb(t.secondary));
+  r.setProperty("--accent",t.accent||"#6C5CE7");r.setProperty("--accent-rgb",hexToRgb(t.accent||"#6C5CE7"));
+  r.setProperty("--bg-start",t.bgStart);r.setProperty("--bg-mid",t.bgMid);r.setProperty("--bg-end",t.bgEnd);
+  if(cfg.fontDisplay)r.setProperty("--font-display",cfg.fontDisplay+",sans-serif");
+  if(cfg.fontBody)r.setProperty("--font-body",cfg.fontBody+",sans-serif");
+  if(cfg.btnTextColor)r.setProperty("--btn-text",cfg.btnTextColor);else r.setProperty("--btn-text","#1a1a2e");
+  document.querySelectorAll(".gold").forEach(function(el){if(cfg.titleColor){el.classList.add("title-solid");el.style.color=cfg.titleColor}else{el.classList.remove("title-solid");el.style.color=""}});
+  if(cfg.textColor){r.setProperty("--text",cfg.textColor);r.setProperty("--text-muted",cfg.textColor+"99");r.setProperty("--text-dim",cfg.textColor+"55")}
+  else{r.setProperty("--text","#fff");r.setProperty("--text-muted","rgba(255,255,255,0.6)");r.setProperty("--text-dim","rgba(255,255,255,0.35)")}
+  var bgL=document.getElementById("bg-layer"),bgO=document.getElementById("bg-overlay");
+  if(cfg.bgImage){bgL.style.backgroundImage="url("+cfg.bgImage+")";bgL.style.opacity="1";
+    bgL.style.backgroundSize=cfg.bgFit||"cover";bgL.style.backgroundAttachment=cfg.bgFixed?"fixed":"scroll";
+    bgL.style.mixBlendMode=cfg.bgBlend||"normal";
+    bgO.style.background=cfg.bgOverlay||"rgba(0,0,0,0.3)";document.body.style.background="transparent"}
+  else{bgL.style.backgroundImage="none";bgL.style.opacity="0";bgO.style.background="none";
+    document.body.style.background="linear-gradient(135deg,"+t.bgStart+","+t.bgMid+","+t.bgEnd+")"}
+  renderDecorations(cfg.decorations||[]);document.title=cfg.festivalName||"축제 보물찾기"}
+
+function renderDecorations(ds){var l=document.getElementById("deco-layer");l.innerHTML="";if(!ds||!ds.length)return;
+  ds.forEach(function(d){var img=document.createElement("img");img.src=d.data;img.className="deco-img "+(d.anim||"");
+    var sz=d.size||15;img.style.width=sz+"vmin";img.style.height="auto";
+    var op=d.opacity!=null?d.opacity:0.7;img.style.opacity=op;img.style.setProperty("--deco-op",op);
+    var x=d.x!=null?d.x:10,y=d.y!=null?d.y:10;
+    img.style.left=x+"%";img.style.top=y+"%";
+    if(d.rotate)img.style.transform="rotate("+d.rotate+"deg)";
+    l.appendChild(img)})}
+
+function getMissionColor(i){var c=["--mission-1","--mission-2","--mission-3","--mission-4","--mission-5","--mission-6","--mission-7","--mission-8","--mission-9","--mission-10"];return getComputedStyle(document.documentElement).getPropertyValue(c[i%10]).trim()}
+
+/* ═══ STORAGE ═══ */
+function saveConfigLocal(){try{
+  var c=JSON.parse(JSON.stringify(config));
+  if(c.bgImage&&c.bgImage.length>500000){localStorage.setItem("fh_bg",c.bgImage);c.bgImage="__stored__"}
+  if(c.logoImage&&c.logoImage.length>200000){localStorage.setItem("fh_logo1",c.logoImage);c.logoImage="__logo1__"}
+  if(c.logoImage2&&c.logoImage2.length>200000){localStorage.setItem("fh_logo2",c.logoImage2);c.logoImage2="__logo2__"}
+  if(c.decorations)c.decorations.forEach(function(d,i){if(d.data&&d.data.length>200000){localStorage.setItem("fh_deco_"+i,d.data);d.data="__stored_"+i+"__"}});
+  localStorage.setItem("fh_config",JSON.stringify(c))}catch(e){console.error("Config save error:",e)}}
+function loadConfigLocal(){try{var raw=localStorage.getItem("fh_config");if(!raw)return null;var c=JSON.parse(raw);
+  if(c.bgImage==="__stored__"){var bg=localStorage.getItem("fh_bg");c.bgImage=bg||""}
+  if(c.logoImage==="__logo1__"){c.logoImage=localStorage.getItem("fh_logo1")||""}
+  if(c.logoImage2==="__logo2__"){c.logoImage2=localStorage.getItem("fh_logo2")||""}
+  if(c.decorations)c.decorations.forEach(function(d,i){if(d.data&&d.data.indexOf("__stored_")===0){var dd=localStorage.getItem("fh_deco_"+i);d.data=dd||""}});
+  return c}catch(e){return null}}
+function savePlayerLocal(){localStorage.setItem("fh_player",JSON.stringify(player))}
+async function saveConfigFB(){if(!useFirebase||!db)return;try{var c=JSON.parse(JSON.stringify(config));c.bgImage="";c.logoImage="";c.logoImage2="";c.decorations=(c.decorations||[]).map(function(d){return Object.assign({},d,{data:""})});await db.collection("settings").doc("config").set(c)}catch(e){}}
+async function loadConfigFB(){if(!useFirebase||!db)return null;try{var doc=await db.collection("settings").doc("config").get();return doc.exists?doc.data():null}catch(e){return null}}
+async function saveParticipantFB(p){if(!useFirebase||!db)return;try{await db.collection("participants").doc(p.phone+"_"+p.birthdate).set(p,{merge:true})}catch(e){}}
+async function findParticipantFB(ph,bi){if(!useFirebase||!db)return null;try{var d=await db.collection("participants").doc(ph+"_"+bi).get();return d.exists?d.data():null}catch(e){return null}}
+async function getAllParticipantsFB(){if(!useFirebase||!db)return[];try{var s=await db.collection("participants").get(),a=[];s.forEach(function(d){a.push(d.data())});return a}catch(e){return[]}}
+async function saveConfig(){saveConfigLocal();if(useFirebase)await saveConfigFB()}
+async function loadConfig(){var local=loadConfigLocal();if(useFirebase){var fb=await loadConfigFB();if(fb){if(local){fb.bgImage=local.bgImage||"";fb.logoImage=local.logoImage||"";fb.logoImage2=local.logoImage2||"";fb.decorations=(fb.decorations||[]).map(function(d,i){var ld=(local.decorations||[])[i];return Object.assign({},d,{data:ld?ld.data:""})})};config=fb;saveConfigLocal();return}}
+  config=local||JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  if(!config.colorOverride)config.colorOverride={enabled:false,primary:"",secondary:"",accent:"",bgStart:"",bgMid:"",bgEnd:""};
+  if(config.logoText===undefined)config.logoText="대전광역시 · 대전관광공사";
+  if(config.logoImage===undefined)config.logoImage="";
+  if(config.logoImage2===undefined)config.logoImage2="";
+  for(var i=0;i<config.missions.length;i++){if(!config.missions[i].code)config.missions[i].code=generateCode()}saveConfigLocal()}
+async function saveParticipant(p){var pts=JSON.parse(localStorage.getItem("fh_participants")||"[]"),found=false;
+  for(var i=0;i<pts.length;i++){if(pts[i].phone===p.phone&&pts[i].birthdate===p.birthdate){pts[i]=p;found=true;break}}
+  if(!found)pts.push(p);localStorage.setItem("fh_participants",JSON.stringify(pts));if(useFirebase)await saveParticipantFB(p)}
+async function getParticipants(){if(useFirebase){var fb=await getAllParticipantsFB();if(fb.length)return fb}return JSON.parse(localStorage.getItem("fh_participants")||"[]")}
+
+function initFirebase(){var s=localStorage.getItem("fh_firebase_config");if(!s)return;try{firebase.initializeApp(JSON.parse(s));db=firebase.firestore();useFirebase=true}catch(e){useFirebase=false}}
+
+/* ═══ NAVIGATION ═══ */
+function show(id){document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active")});var el=document.getElementById(id);if(el)el.classList.add("active");window.scrollTo(0,0);
+  /* 관리자 페이지에서는 코너 버튼 숨김 */
+  var cb=document.getElementById("admin-corner");
+  if(cb){cb.style.display=(id==="pg-admin"||id==="pg-admin-login")?"none":"flex"}}
+function showHome(){show("pg-home");makeSparkles(document.getElementById("home-sparkles"),10);document.getElementById("home-icon").textContent=config.festivalIcon||"🗺️";document.getElementById("home-title").textContent=config.festivalName;document.getElementById("home-sub").textContent=config.festivalSub;
+  /* 로고 렌더링 */
+  renderHomeLogo()}
+
+function renderHomeLogo(){
+  var area=document.getElementById("home-logo-area");if(!area)return;var h="";
+  if(config.logoImage)h+='<img src="'+config.logoImage+'" alt="로고">';
+  if(config.logoImage2)h+='<img src="'+config.logoImage2+'" alt="로고2">';
+  if(config.logoText)h+='<div class="logo-text">'+config.logoText+'</div>';
+  area.innerHTML=h;
+  area.style.display=(config.logoImage||config.logoImage2||config.logoText)?"flex":"none"}
+
+/* ═══ REGISTER / LOGIN ═══ */
+function showRegister(){show("pg-register");document.getElementById("reg-name").value="";document.getElementById("reg-phone").value="";document.getElementById("reg-birth").value="";document.getElementById("reg-err").style.display="none"}
+async function doRegister(){var name=document.getElementById("reg-name").value.trim(),phone=document.getElementById("reg-phone").value.replace(/[^0-9]/g,""),birth=document.getElementById("reg-birth").value.replace(/[^0-9]/g,""),errEl=document.getElementById("reg-err");
+  if(!name){errEl.textContent="이름을 입력해주세요!";errEl.style.display="block";return}
+  if(!/^\d{10,11}$/.test(phone)){errEl.textContent="올바른 연락처를 입력해주세요!";errEl.style.display="block";return}
+  if(!/^\d{6}$/.test(birth)){errEl.textContent="생년월일 앞 6자리를 입력해주세요!";errEl.style.display="block";return}
+  if(useFirebase){var ex=await findParticipantFB(phone,birth);if(ex){if(ex.name!==name){errEl.textContent="이미 등록된 연락처입니다.";errEl.style.display="block";return}player=ex;completed=ex.completedMissions||[];savePlayerLocal();showMissions();return}}
+  else{var pts=JSON.parse(localStorage.getItem("fh_participants")||"[]");for(var i=0;i<pts.length;i++){if(pts[i].phone===phone&&pts[i].birthdate===birth){if(pts[i].name!==name){errEl.textContent="이미 등록된 연락처입니다.";errEl.style.display="block";return}player=pts[i];completed=pts[i].completedMissions||[];savePlayerLocal();showMissions();return}}}
+  player={name:name,phone:phone,birthdate:birth,completedMissions:[],registeredAt:new Date().toISOString()};completed=[];savePlayerLocal();await saveParticipant(player);showMissions()}
+function showLogin(){show("pg-login");document.getElementById("login-phone").value="";document.getElementById("login-birth").value="";document.getElementById("login-err").style.display="none"}
+async function doLogin(){var phone=document.getElementById("login-phone").value.replace(/[^0-9]/g,""),birth=document.getElementById("login-birth").value.replace(/[^0-9]/g,""),errEl=document.getElementById("login-err");
+  if(!/^\d{10,11}$/.test(phone)||!/^\d{6}$/.test(birth)){errEl.textContent="정보를 정확히 입력해주세요!";errEl.style.display="block";return}
+  var found=null;if(useFirebase)found=await findParticipantFB(phone,birth);
+  else{var pts=JSON.parse(localStorage.getItem("fh_participants")||"[]");for(var i=0;i<pts.length;i++){if(pts[i].phone===phone&&pts[i].birthdate===birth){found=pts[i];break}}}
+  if(!found){errEl.textContent="등록 정보를 찾을 수 없어요!";errEl.style.display="block";return}
+  player=found;completed=found.completedMissions||[];savePlayerLocal();showMissions()}
+
+/* ═══ MISSIONS ═══ */
+function showMissions(){show("pg-missions");var mc=config.missionCount||config.missions.length;document.getElementById("m-player-name").textContent=player?player.name:"";document.getElementById("m-festival").textContent=config.festivalName;
+  var dots=document.getElementById("m-dots"),h="";for(var i=0;i<mc;i++){var dn=completed.indexOf(i)>=0;h+='<div class="progress-dot '+(dn?"completed":"pending")+'">'+(dn?"✓":(config.missions[i]?config.missions[i].emoji:"⭐"))+"</div>"}dots.innerHTML=h;document.getElementById("m-count").textContent=completed.length+" / "+mc+" 완료";
+  var grid=document.getElementById("m-grid");h="";for(var i=0;i<mc;i++){var m=config.missions[i];if(!m)continue;var dn=completed.indexOf(i)>=0,col=getMissionColor(i);h+='<div class="mission-card '+(dn?"done":"")+'" style="background:'+(dn?"rgba(76,175,80,.12)":"linear-gradient(135deg,"+col+"18,"+col+"08)")+";border:"+(dn?"2px solid rgba(76,175,80,.35)":"2px solid "+col+"33")+'" onclick="'+(dn?"":"openScan("+i+")")+'">';if(dn)h+='<div class="done-badge">✓</div>';h+='<div style="font-size:38px;margin-bottom:8px;'+(dn?"filter:grayscale(.3)":"")+'">'+m.emoji+'</div><h3 style="font-size:14px;font-weight:900;margin-bottom:4px;color:'+(dn?"rgba(255,255,255,.45)":"var(--text)")+'">'+m.name+'</h3><p style="font-size:11px;color:'+(dn?"rgba(76,175,80,.7)":"var(--text-dim)")+';font-weight:600">'+(dn?"완료!":"탭하여 도전")+"</p></div>"}grid.innerHTML=h;document.getElementById("m-complete-btn").style.display=completed.length>=mc?"block":"none"}
+
+/* ═══ SCAN ═══ */
+function openScan(i){scanTarget=i;showScanInfo()}
+function showScanInfo(){show("pg-scan-info");var m=config.missions[scanTarget];document.getElementById("si-emoji").textContent=m.emoji;document.getElementById("si-name").textContent=m.name;document.getElementById("si-name").style.color=getMissionColor(scanTarget);document.getElementById("si-hint").textContent=m.hint}
+function showScanCamera(){show("pg-scan-cam");stopCamera();document.getElementById("sc-main").style.display="flex";document.getElementById("sc-live").style.display="none";document.getElementById("sc-photo-result").style.display="none";var can=!!(window.isSecureContext&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia);document.getElementById("sc-btn-stream").style.display=can?"block":"none";document.getElementById("sc-env-msg").style.display=can?"none":"block"}
+function tryLiveCamera(){document.getElementById("sc-main").style.display="none";document.getElementById("sc-live").style.display="flex";document.getElementById("sc-live-status").textContent="카메라 연결 중...";navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:640},height:{ideal:480}}}).then(function(stream){cameraStream=stream;var v=document.getElementById("sc-video");v.srcObject=stream;v.setAttribute("playsinline","");v.setAttribute("muted","");v.setAttribute("autoplay","");v.play().catch(function(){});document.getElementById("sc-live-status").textContent="📷 QR코드를 카메라에 비춰주세요!";var sCv=document.createElement("canvas"),sCtx=sCv.getContext("2d"),scanning=false;scanInterval=setInterval(function(){if(!v||v.readyState<2||scanning)return;scanning=true;sCv.width=v.videoWidth||320;sCv.height=v.videoHeight||240;sCtx.drawImage(v,0,0,sCv.width,sCv.height);if(typeof jsQR!=="undefined"){var id=sCtx.getImageData(0,0,sCv.width,sCv.height),code=jsQR(id.data,sCv.width,sCv.height,{inversionAttempts:"attemptBoth"});scanning=false;if(code&&code.data)handleScanResult(code.data)}else scanning=false},800)}).catch(function(){stopCamera();showScanCamera();document.getElementById("sc-btn-stream").style.display="none"})}
+function triggerPhotoCapture(){document.getElementById("sc-file-input").click()}
+function onPhotoCaptured(input){if(!input.files||!input.files[0])return;var file=input.files[0],reader=new FileReader();reader.onload=function(e){var img=new Image();img.onload=function(){document.getElementById("sc-main").style.display="none";document.getElementById("sc-live").style.display="none";document.getElementById("sc-photo-result").style.display="flex";document.getElementById("sc-photo-img").src=e.target.result;document.getElementById("sc-photo-status").innerHTML='<span class="scanning-spinner"></span>분석 중...';document.getElementById("sc-photo-status").style.color="var(--primary)";document.getElementById("sc-photo-retry").style.display="none";scanQRFromImage(img).then(function(t){if(t)handleScanResult(t);else showPhotoFail()})};img.src=e.target.result};reader.readAsDataURL(file);input.value=""}
+function handleScanResult(text){if(!text){showPhotoFail();return}var mc=config.missionCount||config.missions.length;for(var j=0;j<mc;j++){if(config.missions[j]&&text===config.missions[j].code){if(j===scanTarget){stopCamera();missionSuccess();return}var s=document.getElementById("sc-photo-status")||document.getElementById("sc-live-status");if(s){s.textContent="⚠️ 이건 '"+config.missions[j].name+"' QR코드예요!";s.style.color="var(--error)"}var r=document.getElementById("sc-photo-retry");if(r)r.style.display="flex";return}}var s=document.getElementById("sc-photo-status");if(s){s.textContent="보물찾기 QR코드가 아니에요!";s.style.color="var(--error)"}var r=document.getElementById("sc-photo-retry");if(r)r.style.display="flex"}
+function showPhotoFail(){document.getElementById("sc-photo-status").innerHTML='<span style="font-size:36px;display:block;margin-bottom:10px">😥</span>QR코드 인식 실패<br><span style="font-size:12px;opacity:.5">가까이, 정면에서 다시 찍어주세요</span>';document.getElementById("sc-photo-status").style.color="rgba(255,255,255,.8)";document.getElementById("sc-photo-retry").style.display="flex"}
+function stopCamera(){if(scanInterval){clearInterval(scanInterval);scanInterval=null}if(cameraStream){cameraStream.getTracks().forEach(function(t){t.stop()});cameraStream=null}var v=document.getElementById("sc-video");if(v)v.srcObject=null}
+async function missionSuccess(){if(completed.indexOf(scanTarget)<0){completed.push(scanTarget);player.completedMissions=completed;player.lastMissionAt=new Date().toISOString();savePlayerLocal();await saveParticipant(player)}showSuccess()}
+
+/* ═══ SUCCESS / COMPLETE ═══ */
+function showSuccess(){show("pg-success");makeConfetti(document.getElementById("su-confetti"));var m=config.missions[scanTarget],mc=config.missionCount||config.missions.length;document.getElementById("su-mission").textContent=m.emoji+" "+m.name;document.getElementById("su-count").textContent=completed.length+" / "+mc+" 보물 발견!";var dots=document.getElementById("su-dots"),h="";for(var i=0;i<mc;i++){var dn=completed.indexOf(i)>=0;h+='<div style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;'+(dn?"background:linear-gradient(135deg,#4CAF50,#2E7D32);border:2px solid #66BB6A":"background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.1)")+'">'+(dn?"✓":(config.missions[i]?config.missions[i].emoji:"⭐"))+"</div>"}dots.innerHTML=h;var btn=document.getElementById("su-btn");btn.textContent=completed.length>=mc?"🏆 최종 보상 확인!":"🗺️ 다음 보물 찾으러";btn.onclick=function(){completed.length>=mc?showComplete():showMissions()}}
+function showComplete(){show("pg-complete");makeConfetti(document.getElementById("cp-confetti"));makeSparkles(document.getElementById("cp-sparkles"),12);document.getElementById("cp-reward-title").textContent=config.rewardTitle;document.getElementById("cp-reward-desc").textContent=config.rewardDesc;document.getElementById("cp-pname").textContent="🧑 "+(player?player.name:"");document.getElementById("cp-time").textContent="⏰ "+formatDate(new Date());document.getElementById("cp-festival").textContent=config.festivalName}
+function showRewards(){show("pg-rewards");document.getElementById("rw-title").textContent=config.rewardTitle;document.getElementById("rw-desc").textContent=config.rewardDesc;makeSparkles(document.getElementById("rw-sparkles"),6)}
+
+/* ═══ ADMIN ═══ */
+function showAdminLogin(){show("pg-admin-login");document.getElementById("al-pw").value="";document.getElementById("al-err").style.display="none"}
+function doAdminLogin(){if(document.getElementById("al-pw").value===(config.adminPw||"1234"))showAdmin("basic");else document.getElementById("al-err").style.display="block"}
+function showAdmin(tab){show("pg-admin");document.querySelectorAll(".admin-section").forEach(function(s){s.classList.remove("active")});document.querySelectorAll(".tab-btn").forEach(function(b){b.className="tab-btn inactive"});var s=document.getElementById("adm-"+tab);if(s)s.classList.add("active");var b=document.getElementById("tbn-"+tab);if(b)b.className="tab-btn active";
+  if(tab==="basic")renderAdminBasic();if(tab==="theme")renderAdminTheme();if(tab==="missions")renderAdminMissions();if(tab==="rewards")renderAdminRewards();if(tab==="qrcodes")renderAdminQR();if(tab==="participants")renderAdminParticipants()}
+
+/* ── 기본설정 ── */
+function renderAdminBasic(){document.getElementById("ab-name").value=config.festivalName;document.getElementById("ab-sub").value=config.festivalSub;document.getElementById("ab-icon").value=config.festivalIcon;document.getElementById("ab-pw").value=config.adminPw;document.getElementById("ab-logo-text").value=config.logoText||"";
+  /* 로고 미리보기 */
+  var lp1=document.getElementById("ab-logo1-preview");
+  if(config.logoImage)lp1.innerHTML='<img src="'+config.logoImage+'" class="upload-preview"><p style="font-size:11px;color:var(--text-dim);margin-top:6px">클릭하여 변경 | <span style="color:var(--error);cursor:pointer" onclick="event.stopPropagation();removeLogo(1)">삭제</span></p>';
+  else lp1.innerHTML='<div style="font-size:28px;margin-bottom:4px">🏛️</div><p style="font-size:12px;color:var(--text-muted)">로고 1 업로드 (PNG)</p><p style="font-size:10px;color:var(--text-dim)">예: 대전광역시 로고</p>';
+  var lp2=document.getElementById("ab-logo2-preview");
+  if(config.logoImage2)lp2.innerHTML='<img src="'+config.logoImage2+'" class="upload-preview"><p style="font-size:11px;color:var(--text-dim);margin-top:6px">클릭하여 변경 | <span style="color:var(--error);cursor:pointer" onclick="event.stopPropagation();removeLogo(2)">삭제</span></p>';
+  else lp2.innerHTML='<div style="font-size:28px;margin-bottom:4px">🏢</div><p style="font-size:12px;color:var(--text-muted)">로고 2 업로드 (PNG)</p><p style="font-size:10px;color:var(--text-dim)">예: 대전관광공사 로고</p>';
+  document.getElementById("ab-fb-status").innerHTML=useFirebase?'<span style="color:#4CAF50">✅ Firebase 연결됨</span>':'<span style="color:var(--text-dim)">⚠️ 로컬 모드</span>'}
+async function onLogoUpload(num,input){if(!input.files||!input.files[0])return;var b=await fileToBase64(input.files[0],200);if(num===1)config.logoImage=b;else config.logoImage2=b;renderAdminBasic();renderHomeLogo();input.value=""}
+function removeLogo(num){if(num===1){config.logoImage="";localStorage.removeItem("fh_logo1")}else{config.logoImage2="";localStorage.removeItem("fh_logo2")}renderAdminBasic();renderHomeLogo()}
+async function saveAdminBasic(){config.festivalName=document.getElementById("ab-name").value.trim()||"보물찾기";config.festivalSub=document.getElementById("ab-sub").value.trim();config.festivalIcon=document.getElementById("ab-icon").value.trim()||"🗺️";config.adminPw=document.getElementById("ab-pw").value||"1234";config.logoText=document.getElementById("ab-logo-text").value;await saveConfig();applyTheme();renderHomeLogo();toast("저장 완료!")}
+function saveFirebaseConfig(){var r=document.getElementById("ab-fb-json").value.trim();if(!r){toast("설정을 입력해주세요","err");return}try{var o=JSON.parse(r);if(!o.apiKey){toast("올바르지 않은 설정","err");return}localStorage.setItem("fh_firebase_config",JSON.stringify(o));toast("저장 완료! 새로고침합니다.");setTimeout(function(){location.reload()},1500)}catch(e){toast("JSON 형식 오류","err")}}
+
+/* ── 테마 ── */
+function renderAdminTheme(){
+  var grid=document.getElementById("at-grid"),h="";Object.keys(THEMES).forEach(function(k){var t=THEMES[k];h+='<div class="theme-card '+(config.theme===k?"selected":"")+'" onclick="selectTheme(\''+k+'\')" style="background:'+t.bgStart+'"><div class="preview" style="background:linear-gradient(135deg,'+t.primary+','+t.secondary+')"></div><span style="font-size:11px;font-weight:700;color:rgba(255,255,255,.8)">'+t.name+"</span></div>"});grid.innerHTML=h;
+  var cd=document.getElementById("at-custom");cd.style.display=config.theme==="custom"?"block":"none";
+  if(config.theme==="custom"){var cc=config.customColors;document.getElementById("cc-primary").value=cc.primary;document.getElementById("cc-secondary").value=cc.secondary;document.getElementById("cc-accent").value=cc.accent;document.getElementById("cc-bg-start").value=cc.bgStart;document.getElementById("cc-bg-mid").value=cc.bgMid;document.getElementById("cc-bg-end").value=cc.bgEnd}
+  var ov=config.colorOverride||{};var ovOn=document.getElementById("at-ov-on");ovOn.className="toggle"+(ov.enabled?" on":"");
+  document.getElementById("at-ov-panel").style.display=ov.enabled?"block":"none";
+  if(ov.enabled){var ec=getEffectiveColors();document.getElementById("ov-primary").value=ov.primary||ec.primary;document.getElementById("ov-secondary").value=ov.secondary||ec.secondary;document.getElementById("ov-accent").value=ov.accent||ec.accent;document.getElementById("ov-bg-start").value=ov.bgStart||ec.bgStart;document.getElementById("ov-bg-mid").value=ov.bgMid||ec.bgMid;document.getElementById("ov-bg-end").value=ov.bgEnd||ec.bgEnd}
+  document.getElementById("at-title-color").value=config.titleColor||"#FFD700";document.getElementById("at-title-color-on").className="toggle"+(config.titleColor?" on":"");
+  document.getElementById("at-text-color").value=config.textColor||"#FFFFFF";document.getElementById("at-text-color-on").className="toggle"+(config.textColor?" on":"");
+  document.getElementById("at-btn-color").value=config.btnTextColor||"#1a1a2e";document.getElementById("at-btn-color-on").className="toggle"+(config.btnTextColor?" on":"");
+  var fList=document.getElementById("at-font-display");h="";
+  FONT_DISPLAY_OPTIONS.forEach(function(cat){h+='<div class="font-cat-title">'+cat.cat+"</div>";
+    cat.fonts.forEach(function(f){h+='<div class="font-option '+(config.fontDisplay===f.v?"selected":"")+'" onclick="selectFontDisplay(\''+f.v.replace(/'/g,"\\'")+'\')" style="font-family:'+f.v+',sans-serif"><span style="font-size:20px">보물찾기 대모험!</span><br><span style="font-size:11px;font-family:var(--font-body);color:var(--text-dim)">'+f.l+" — "+f.s+"</span></div>"})});fList.innerHTML=h;
+  var bSel=document.getElementById("at-font-body");bSel.innerHTML="";FONT_BODY_OPTIONS.forEach(function(f){var o=document.createElement("option");o.value=f.v;o.textContent=f.l;if(config.fontBody===f.v)o.selected=true;bSel.appendChild(o)});
+  var bgP=document.getElementById("at-bg-preview");
+  if(config.bgImage)bgP.innerHTML='<img src="'+config.bgImage+'" class="upload-preview"><p style="font-size:11px;color:var(--text-dim);margin-top:6px">클릭하여 변경 | <span style="color:var(--error);cursor:pointer" onclick="event.stopPropagation();removeBgImage()">삭제</span></p>';
+  else bgP.innerHTML='<div style="font-size:36px;margin-bottom:8px">🖼️</div><p style="font-size:13px;color:var(--text-muted)">배경 이미지 업로드</p><p style="font-size:11px;color:var(--text-dim)">PNG, JPG (권장: 1080x1920)</p>';
+  document.getElementById("at-bg-overlay").value=config.bgOverlay||"rgba(0,0,0,0.3)";
+  document.getElementById("at-bg-fit").value=config.bgFit||"cover";
+  document.getElementById("at-bg-fixed").className="toggle"+(config.bgFixed!==false?" on":"");
+  renderDecoAdmin()}
+
+function selectTheme(k){config.theme=k;renderAdminTheme();applyTheme()}
+function selectFontDisplay(v){config.fontDisplay=v;renderAdminTheme();applyTheme()}
+function toggleColorOverride(){var ov=config.colorOverride||{};ov.enabled=!ov.enabled;
+  if(ov.enabled&&!ov.primary){var base=config.theme==="custom"?config.customColors:(THEMES[config.theme]||THEMES.treasure);ov.primary=base.primary;ov.secondary=base.secondary;ov.accent=base.accent;ov.bgStart=base.bgStart;ov.bgMid=base.bgMid;ov.bgEnd=base.bgEnd}
+  config.colorOverride=ov;renderAdminTheme();applyTheme()}
+function updateOverrideColor(key){var ov=config.colorOverride||{};
+  var idMap={primary:"ov-primary",secondary:"ov-secondary",accent:"ov-accent",bgStart:"ov-bg-start",bgMid:"ov-bg-mid",bgEnd:"ov-bg-end"};
+  var el=document.getElementById(idMap[key]);if(el)ov[key]=el.value;config.colorOverride=ov;applyTheme()}
+function toggleTitleColor(){config.titleColor=config.titleColor?"":document.getElementById("at-title-color").value;renderAdminTheme();applyTheme()}
+function toggleTextColor(){config.textColor=config.textColor?"":document.getElementById("at-text-color").value;renderAdminTheme();applyTheme()}
+function toggleBtnColor(){config.btnTextColor=config.btnTextColor?"":document.getElementById("at-btn-color").value;renderAdminTheme();applyTheme()}
+function toggleBgFixed(){config.bgFixed=!config.bgFixed;renderAdminTheme();applyTheme()}
+async function onBgImageUpload(input){if(!input.files||!input.files[0])return;var b=await fileToBase64(input.files[0],500);config.bgImage=b;renderAdminTheme();applyTheme();input.value=""}
+function removeBgImage(){config.bgImage="";localStorage.removeItem("fh_bg");renderAdminTheme();applyTheme()}
+async function onDecoUpload(input){if(!input.files||!input.files[0])return;if(!config.decorations)config.decorations=[];if(config.decorations.length>=8){toast("최대 8개","err");input.value="";return}var b=await fileToBase64(input.files[0],200);config.decorations.push({data:b,x:10+Math.random()*60,y:10+Math.random()*60,anim:"deco-float",size:15,opacity:0.7,rotate:0});renderDecoAdmin();applyTheme();input.value=""}
+function renderDecoAdmin(){var list=document.getElementById("at-deco-list"),h="";
+  (config.decorations||[]).forEach(function(d,i){
+    h+='<div class="deco-admin-card"><img src="'+d.data+'">';
+    h+='<div style="flex:1;display:flex;flex-direction:column;gap:6px">';
+    h+='<div class="xy-grid"><span>X</span><input type="range" min="0" max="95" value="'+Math.round(d.x||10)+'" oninput="updateDeco('+i+",'x',+this.value)\"><span>Y</span><input type=\"range\" min=\"0\" max=\"95\" value=\""+Math.round(d.y||10)+"\" oninput=\"updateDeco("+i+",'y',+this.value)\"></div>";
+    h+='<div class="xy-grid"><span>크기</span><input type="range" min="3" max="50" value="'+(d.size||15)+'" oninput="updateDeco('+i+",'size',+this.value)\"><span>투명</span><input type=\"range\" min=\"10\" max=\"100\" value=\""+Math.round((d.opacity!=null?d.opacity:0.7)*100)+"\" oninput=\"updateDeco("+i+",'opacity',this.value/100)\"></div>";
+    h+='<div class="xy-grid"><span>회전</span><input type="range" min="-180" max="180" value="'+(d.rotate||0)+'" oninput="updateDeco('+i+",'rotate',+this.value)\" style=\"grid-column:2/5\"></div>";
+    h+='<select class="inp inp-xs" onchange="updateDeco('+i+",'anim',this.value)\">";DECO_ANIMS.forEach(function(a){h+='<option value="'+a.v+'"'+(d.anim===a.v?" selected":"")+">"+a.l+"</option>"});h+="</select>";
+    h+='<button class="btn btn-danger btn-xs" style="align-self:flex-end" onclick="removeDeco('+i+')">삭제</button>';
+    h+="</div></div>"});
+  if(!h)h='<p style="text-align:center;color:var(--text-dim);font-size:13px;padding:16px">장식 이미지가 없습니다</p>';list.innerHTML=h}
+function updateDeco(i,k,v){if(config.decorations&&config.decorations[i]){config.decorations[i][k]=v;applyTheme()}}
+function removeDeco(i){if(config.decorations){config.decorations.splice(i,1);renderDecoAdmin();applyTheme()}}
+
+async function saveAdminTheme(){
+  config.fontBody=document.getElementById("at-font-body").value;
+  if(config.titleColor)config.titleColor=document.getElementById("at-title-color").value;
+  if(config.textColor)config.textColor=document.getElementById("at-text-color").value;
+  if(config.btnTextColor)config.btnTextColor=document.getElementById("at-btn-color").value;
+  if(config.theme==="custom")config.customColors={primary:document.getElementById("cc-primary").value,secondary:document.getElementById("cc-secondary").value,accent:document.getElementById("cc-accent").value,bgStart:document.getElementById("cc-bg-start").value,bgMid:document.getElementById("cc-bg-mid").value,bgEnd:document.getElementById("cc-bg-end").value};
+  if(config.colorOverride&&config.colorOverride.enabled){var ov=config.colorOverride;ov.primary=document.getElementById("ov-primary").value;ov.secondary=document.getElementById("ov-secondary").value;ov.accent=document.getElementById("ov-accent").value;ov.bgStart=document.getElementById("ov-bg-start").value;ov.bgMid=document.getElementById("ov-bg-mid").value;ov.bgEnd=document.getElementById("ov-bg-end").value}
+  config.bgOverlay=document.getElementById("at-bg-overlay").value;
+  config.bgFit=document.getElementById("at-bg-fit").value;
+  await saveConfig();applyTheme();toast("테마 저장 완료!")}
+
+/* ── 미션 ── */
+function renderAdminMissions(){var list=document.getElementById("am-list"),h="",mc=config.missions.length;for(var i=0;i<mc;i++){var m=config.missions[i];h+='<div class="admin-group" style="border-left:3px solid '+getMissionColor(i)+'"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:14px;font-weight:900;color:'+getMissionColor(i)+'">미션 '+(i+1)+"</span>";if(mc>2)h+='<button class="btn btn-danger btn-sm" onclick="removeMission('+i+')">삭제</button>';h+='</div><div style="display:flex;gap:8px;margin-bottom:8px"><select class="inp inp-sm am-emoji" style="width:70px;font-size:20px;text-align:center" data-idx="'+i+'">';EMOJI_LIST.forEach(function(e){h+='<option value="'+e+'"'+(m.emoji===e?" selected":"")+">"+e+"</option>"});h+='</select><input class="inp inp-sm am-name" placeholder="미션 이름" value="'+m.name+'" data-idx="'+i+'" style="flex:1"></div><textarea class="inp inp-sm am-hint" rows="2" placeholder="위치 힌트" data-idx="'+i+'" style="resize:vertical">'+m.hint+"</textarea><p style=\"margin-top:6px;font-size:11px;color:rgba(255,255,255,.3)\">QR: "+m.code+"</p></div>"}list.innerHTML=h;document.getElementById("am-add-btn").style.display=mc>=10?"none":"block"}
+function addMission(){if(config.missions.length>=10){toast("최대 10개","err");return}config.missions.push({name:"새 미션",hint:"힌트를 입력하세요",emoji:EMOJI_LIST[config.missions.length%EMOJI_LIST.length],code:generateCode()});config.missionCount=config.missions.length;renderAdminMissions()}
+function removeMission(i){if(config.missions.length<=2)return;if(!confirm("미션 "+(i+1)+" 삭제?"))return;config.missions.splice(i,1);config.missionCount=config.missions.length;renderAdminMissions()}
+async function saveAdminMissions(){document.querySelectorAll(".am-name").forEach(function(el){config.missions[+el.dataset.idx].name=el.value});document.querySelectorAll(".am-hint").forEach(function(el){config.missions[+el.dataset.idx].hint=el.value});document.querySelectorAll(".am-emoji").forEach(function(el){config.missions[+el.dataset.idx].emoji=el.value});config.missionCount=config.missions.length;await saveConfig();toast("미션 저장 완료!")}
+
+/* ── 보상 ── */
+function renderAdminRewards(){document.getElementById("ar-title").value=config.rewardTitle;document.getElementById("ar-desc").value=config.rewardDesc}
+async function saveAdminRewards(){config.rewardTitle=document.getElementById("ar-title").value;config.rewardDesc=document.getElementById("ar-desc").value;await saveConfig();toast("보상 저장 완료!")}
+function renderAdminQR(){var g=document.getElementById("aq-grid"),h="";for(var i=0;i<config.missions.length;i++){var m=config.missions[i];h+='<div class="qr-card"><p style="font-size:13px;font-weight:900;color:#1a1a2e;margin-bottom:6px">'+m.emoji+" "+m.name+'</p><img src="'+generateQRDataURL(m.code)+'"><p style="font-size:11px;color:#999;margin-top:4px">'+m.code+"</p></div>"}g.innerHTML=h}
+
+/* ── 참가자 ── */
+async function renderAdminParticipants(){var pts=await getParticipants(),mc=config.missions.length,tc=0;pts.forEach(function(p){if((p.completedMissions||[]).length>=mc)tc++});document.getElementById("ap-total").textContent=pts.length;document.getElementById("ap-complete").textContent=tc;document.getElementById("ap-progress").textContent=pts.length?Math.round(pts.reduce(function(s,p){return s+(p.completedMissions||[]).length},0)/pts.length*10)/10:"0";
+  var list=document.getElementById("ap-list");if(!pts.length){list.innerHTML='<p style="text-align:center;color:var(--text-dim);padding:40px 0">아직 참가자가 없습니다</p>';return}pts.sort(function(a,b){return(b.completedMissions||[]).length-(a.completedMissions||[]).length});var h="";pts.forEach(function(p){var cm=p.completedMissions||[];h+='<div class="pt-row"><div><p style="font-weight:700;font-size:14px">'+p.name+'</p><p style="font-size:11px;color:var(--text-dim)">'+cm.length+'/'+mc+'</p></div><div>';for(var j=0;j<mc;j++){var d=cm.indexOf(j)>=0;h+='<span class="mini-dot" style="background:'+(d?"#4CAF50":"rgba(255,255,255,.08)")+";color:"+(d?"#fff":"rgba(255,255,255,.25)")+'">'+(d?"✓":(j+1))+"</span>"}h+="</div></div>"});list.innerHTML=h}
+
+/* ── 데이터 ── */
+async function exportParticipants(){var pts=await getParticipants();if(!pts.length){toast("참가자 없음","err");return}var mc=config.missions.length,csv="\uFEFF이름,연락처,생년월일,등록일,완료수";for(var i=0;i<mc;i++)csv+=",미션"+(i+1);csv+="\n";pts.forEach(function(p){var cm=p.completedMissions||[];csv+=p.name+","+p.phone+","+p.birthdate+","+(p.registeredAt||"")+","+cm.length;for(var i=0;i<mc;i++)csv+=","+(cm.indexOf(i)>=0?"O":"X");csv+="\n"});var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));a.download=config.festivalName+"_참가자.csv";a.click();toast("CSV 다운로드!")}
+async function resetAllData(){if(!confirm("모든 참가자 삭제?"))return;if(!confirm("정말 삭제?"))return;localStorage.removeItem("fh_participants");localStorage.removeItem("fh_player");player=null;completed=[];if(useFirebase&&db){try{var s=await db.collection("participants").get(),b=db.batch();s.forEach(function(d){b.delete(d.ref)});await b.commit()}catch(e){}}toast("참가자 초기화 완료");renderAdminParticipants()}
+async function resetConfigToDefault(){if(!confirm("설정 초기화?"))return;config=JSON.parse(JSON.stringify(DEFAULT_CONFIG));for(var i=0;i<config.missions.length;i++)config.missions[i].code=generateCode();await saveConfig();applyTheme();toast("설정 초기화 완료");showAdmin("basic")}
+function exportConfig(){var c=JSON.parse(JSON.stringify(config));c.bgImage="";c.logoImage="";c.logoImage2="";c.decorations=(c.decorations||[]).map(function(d){return Object.assign({},d,{data:""})});var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(c,null,2)],{type:"application/json"}));a.download=config.festivalName+"_설정.json";a.click();toast("설정 다운로드! (이미지는 별도 백업 필요)")}
+function importConfig(){document.getElementById("ad-import-file").click()}
+function onImportConfig(input){if(!input.files||!input.files[0])return;var r=new FileReader();r.onload=async function(e){try{var o=JSON.parse(e.target.result);if(!o.festivalName){toast("올바르지 않은 파일","err");return}config=o;if(!config.colorOverride)config.colorOverride={enabled:false};await saveConfig();applyTheme();toast("설정 가져오기 완료!");showAdmin("basic")}catch(e){toast("파일 읽기 실패","err")}};r.readAsText(input.files[0]);input.value=""}
+
+/* ═══ START ═══ */
+async function startApp(){initFirebase();await loadConfig();applyTheme();var sp=JSON.parse(localStorage.getItem("fh_player")||"null");if(sp){player=sp;completed=sp.completedMissions||[]}if(player)showMissions();else showHome()}
+startApp();
+</script>
+
+<!-- HOME -->
+<div id="pg-home" class="page active">
+<div class="center" style="position:relative">
+<div class="sparkle-wrap" id="home-sparkles"></div>
+<div id="home-icon" class="float" style="font-size:88px;margin-bottom:12px;filter:drop-shadow(0 8px 24px rgba(var(--primary-rgb),.4))">🗺️</div>
+<h1 id="home-title" class="title gold" style="font-size:clamp(32px,8vw,48px);line-height:1.2;margin-bottom:6px">보물찾기</h1>
+<p id="home-sub" style="font-size:16px;color:var(--text-muted);margin-bottom:40px;font-weight:600"></p>
+<button class="btn btn-gold glow" style="max-width:320px" onclick="showRegister()">🚀 새로 시작하기</button>
+<button class="btn btn-accent" style="margin-top:12px;max-width:320px" onclick="showLogin()">🔄 이어하기</button>
+</div>
+<!-- 하단 로고 영역 -->
+<div id="home-logo-area" class="home-logo-area"></div>
+</div>
+
+<!-- REGISTER -->
+<div id="pg-register" class="page"><button class="btn" style="align-self:flex-start;background:none;color:var(--text-muted);font-size:15px;padding:8px 0" onclick="showHome()">← 뒤로</button><div class="center" style="max-width:400px;margin:0 auto;width:100%"><div style="font-size:52px;margin-bottom:10px">🏴‍☠️</div><h2 class="title gold" style="font-size:26px">모험가 등록</h2><p style="color:var(--text-dim);font-size:13px;margin-bottom:24px">정보를 입력해주세요</p><div style="display:flex;flex-direction:column;gap:16px;width:100%"><div><label class="admin-label">👤 이름</label><input id="reg-name" class="inp" placeholder="홍길동"></div><div><label class="admin-label">📱 연락처</label><input id="reg-phone" class="inp" placeholder="01012345678" type="tel"></div><div><label class="admin-label">🎂 생년월일 (앞 6자리)</label><input id="reg-birth" class="inp" placeholder="990101" type="tel" maxlength="6" oninput="this.value=this.value.replace(/\D/g,'').slice(0,6)"></div></div><div id="reg-err" class="err-box" style="display:none"></div><button class="btn btn-gold" style="margin-top:24px" onclick="doRegister()">✨ 등록 완료</button></div></div>
+<!-- LOGIN -->
+<div id="pg-login" class="page"><button class="btn" style="align-self:flex-start;background:none;color:var(--text-muted);font-size:15px;padding:8px 0" onclick="showHome()">← 뒤로</button><div class="center" style="max-width:400px;margin:0 auto;width:100%"><div style="font-size:52px;margin-bottom:10px">🔄</div><h2 class="title gold" style="font-size:26px">이어하기</h2><p style="color:var(--text-dim);font-size:13px;margin-bottom:24px">등록 정보를 입력해주세요</p><div style="display:flex;flex-direction:column;gap:16px;width:100%"><div><label class="admin-label">📱 연락처</label><input id="login-phone" class="inp" placeholder="01012345678" type="tel"></div><div><label class="admin-label">🎂 생년월일</label><input id="login-birth" class="inp" placeholder="990101" type="tel" maxlength="6" oninput="this.value=this.value.replace(/\D/g,'').slice(0,6)"></div></div><div id="login-err" class="err-box" style="display:none"></div><button class="btn btn-gold" style="margin-top:24px" onclick="doLogin()">🔓 불러오기</button></div></div>
+<!-- MISSIONS -->
+<div id="pg-missions" class="page"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><button class="btn btn-sm" style="background:none;border:none;color:var(--text-dim);font-size:12px" onclick="player=null;localStorage.removeItem('fh_player');completed=[];showHome()">← 나가기</button><button class="btn btn-sm" style="background:rgba(var(--primary-rgb),.12);border:1px solid rgba(var(--primary-rgb),.25);color:var(--primary);border-radius:20px;font-weight:700;font-size:12px" onclick="showRewards()">🎁 보상</button></div><div style="text-align:center;margin-bottom:20px"><p id="m-festival" style="font-size:12px;color:var(--text-dim);margin-bottom:2px"></p><p style="font-size:13px;color:var(--text-muted)">안녕, <span style="color:var(--primary);font-weight:700" id="m-player-name"></span>!</p><h2 class="title" style="font-size:24px">미션 보드</h2><div id="m-dots" style="display:flex;justify-content:center;gap:6px;margin-top:10px;flex-wrap:wrap"></div><p id="m-count" style="margin-top:8px;font-size:14px;color:var(--text-muted);font-weight:600"></p></div><div id="m-grid" class="mission-grid"></div><button id="m-complete-btn" class="btn btn-gold glow" style="margin-top:20px;display:none" onclick="showComplete()">🏆 모든 미션 완료!</button></div>
+<!-- SCAN INFO -->
+<div id="pg-scan-info" class="page"><button class="btn" style="align-self:flex-start;background:none;border:none;color:var(--text-muted);font-size:15px;padding:8px 0" onclick="showMissions()">← 미션 보드</button><div class="center" style="max-width:400px;margin:0 auto;width:100%"><div id="si-emoji" style="font-size:60px;margin-bottom:12px"></div><h2 id="si-name" class="title" style="font-size:22px;margin-bottom:8px"></h2><div class="card" style="margin-bottom:28px;width:100%"><p style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:700">📍 위치 힌트</p><p id="si-hint" style="font-size:16px;color:var(--primary);font-weight:700;line-height:1.6"></p></div><button class="btn btn-gold" style="width:100%" onclick="showScanCamera()">📷 QR코드 스캔하기</button></div></div>
+<!-- SCAN CAM -->
+<div id="pg-scan-cam" class="page"><button class="btn" style="align-self:flex-start;background:none;border:none;color:var(--text-muted);font-size:15px;padding:8px 0" onclick="stopCamera();showMissions()">← 미션 보드</button><div class="center"><input type="file" id="sc-file-input" accept="image/*" capture="environment" style="display:none" onchange="onPhotoCaptured(this)"><div id="sc-main" style="display:flex;flex-direction:column;align-items:center;width:100%;max-width:340px"><div style="font-size:60px;margin-bottom:12px">📷</div><h3 class="title" style="font-size:20px;margin-bottom:6px">QR코드 스캔</h3><p style="color:var(--text-muted);font-size:13px;margin-bottom:14px">QR코드를 스캔하세요!</p><p id="sc-env-msg" style="display:none;font-size:12px;padding:10px;border-radius:10px;background:rgba(var(--primary-rgb),.1);color:var(--primary);margin-bottom:14px;width:100%">HTTPS 환경이 아닙니다. 사진 촬영을 이용해주세요.</p><button id="sc-btn-stream" class="btn btn-gold" style="margin-bottom:10px;width:100%;font-size:16px;padding:16px" onclick="tryLiveCamera()">📷 실시간 카메라</button><button class="btn btn-accent" style="width:100%;font-size:16px;padding:16px" onclick="triggerPhotoCapture()">📸 사진 찍기</button></div><div id="sc-live" style="display:none;flex-direction:column;align-items:center;width:100%"><div style="width:100%;max-width:300px;aspect-ratio:1;border-radius:20px;overflow:hidden;border:3px solid rgba(var(--primary-rgb),.4);position:relative;background:#000;margin-bottom:10px"><video id="sc-video" playsinline muted autoplay></video><div style="position:absolute;inset:20%;border:3px solid rgba(var(--primary-rgb),.5);border-radius:14px;pointer-events:none"></div></div><p id="sc-live-status" style="font-size:13px;color:var(--primary);text-align:center;margin-bottom:10px;white-space:pre-wrap"></p><div style="display:flex;gap:8px;width:100%;max-width:300px"><button class="btn btn-accent" style="flex:1;font-size:13px;padding:10px" onclick="stopCamera();triggerPhotoCapture()">📸 사진</button><button class="btn btn-ghost" style="flex:1;font-size:13px;padding:10px" onclick="stopCamera();showScanCamera()">← 돌아가기</button></div></div><div id="sc-photo-result" style="display:none;flex-direction:column;align-items:center;width:100%"><div style="width:100%;max-width:260px;border-radius:18px;overflow:hidden;border:3px solid rgba(var(--accent-rgb),.4);margin-bottom:10px;background:#000"><img id="sc-photo-img" style="width:100%;display:block"></div><p id="sc-photo-status" style="font-size:13px;color:var(--primary);text-align:center;margin-bottom:14px;white-space:pre-wrap;line-height:1.6"></p><div id="sc-photo-retry" style="display:none;flex-direction:column;gap:8px;width:100%;max-width:300px"><button class="btn btn-accent" style="width:100%;font-size:15px;padding:14px" onclick="triggerPhotoCapture()">📸 다시 찍기</button><button class="btn btn-ghost" style="width:100%;font-size:13px;padding:10px" onclick="showScanCamera()">← 돌아가기</button></div></div></div></div>
+<!-- SUCCESS -->
+<div id="pg-success" class="page"><div class="confetti-wrap" id="su-confetti"></div><div class="center"><div class="bounce" style="font-size:88px;margin-bottom:12px">🎉</div><h2 class="title bounce gold" style="font-size:30px;margin-bottom:6px">미션 성공!</h2><p id="su-mission" style="font-size:16px;color:var(--text-muted);margin-bottom:6px"></p><p id="su-count" style="font-size:14px;color:var(--text-dim);margin-bottom:32px"></p><div id="su-dots" style="display:flex;gap:10px;margin-bottom:28px;flex-wrap:wrap;justify-content:center"></div><button id="su-btn" class="btn btn-gold glow" style="max-width:320px"></button></div></div>
+<!-- COMPLETE -->
+<div id="pg-complete" class="page"><div class="confetti-wrap" id="cp-confetti"></div><div class="center" style="position:relative"><div class="sparkle-wrap" id="cp-sparkles"></div><div class="bounce" style="font-size:92px;margin-bottom:12px">🏆</div><h2 class="title" style="font-size:30px;background:linear-gradient(135deg,var(--primary),var(--secondary),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px">축하합니다!</h2><p style="font-size:16px;color:var(--text-muted);margin-bottom:20px;font-weight:700">모든 보물을 찾았어요!</p><div style="background:rgba(var(--primary-rgb),.06);border:2px solid rgba(var(--primary-rgb),.2);border-radius:18px;padding:24px 20px;width:100%;max-width:360px;margin-bottom:28px"><h3 id="cp-reward-title" class="title" style="font-size:18px;color:var(--primary);margin-bottom:10px"></h3><p id="cp-reward-desc" style="font-size:14px;color:var(--text-muted);line-height:1.7;white-space:pre-wrap"></p><div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08)"><p id="cp-festival" style="font-size:12px;color:var(--text-dim)"></p><p id="cp-pname" style="font-size:12px;color:var(--text-dim)"></p><p id="cp-time" style="font-size:12px;color:var(--text-dim)"></p></div></div><button class="btn btn-ghost" onclick="showMissions()">← 미션 보드로</button></div></div>
+<!-- REWARDS -->
+<div id="pg-rewards" class="page"><button class="btn" style="align-self:flex-start;background:none;border:none;color:var(--text-muted);font-size:15px;padding:8px 0" onclick="showMissions()">← 뒤로</button><div class="center" style="position:relative"><div class="sparkle-wrap" id="rw-sparkles"></div><div class="float" style="font-size:64px;margin-bottom:16px">🎁</div><h2 class="title gold" style="font-size:26px;margin-bottom:16px">미션 보상 안내</h2><div style="background:rgba(var(--primary-rgb),.05);border:2px solid rgba(var(--primary-rgb),.15);border-radius:18px;padding:28px 20px;width:100%;max-width:400px"><h3 id="rw-title" style="font-size:18px;font-weight:900;color:var(--primary);margin-bottom:12px"></h3><p id="rw-desc" style="font-size:15px;color:var(--text-muted);line-height:1.8;white-space:pre-wrap"></p></div></div></div>
+<!-- ADMIN LOGIN -->
+<div id="pg-admin-login" class="page"><button class="btn" style="align-self:flex-start;background:none;border:none;color:var(--text-muted);font-size:15px;padding:8px 0" onclick="showHome()">← 뒤로</button><div class="center"><div style="font-size:52px;margin-bottom:16px">🔐</div><h2 class="title" style="font-size:22px;margin-bottom:20px">관리자 로그인</h2><input id="al-pw" type="password" placeholder="비밀번호" class="inp" style="max-width:280px;text-align:center;font-size:17px" onkeydown="if(event.key==='Enter')doAdminLogin()"><p id="al-err" class="err-box shake" style="display:none">비밀번호가 틀렸어요!</p><button class="btn btn-accent" style="margin-top:16px;max-width:280px" onclick="doAdminLogin()">로그인</button></div></div>
+
+<!-- ═══ ADMIN PANEL ═══ -->
+<div id="pg-admin" class="page"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><button class="btn" style="background:none;border:none;color:var(--text-muted);font-size:14px" onclick="showHome()">← 나가기</button><h2 class="title" style="font-size:18px;color:var(--accent)">⚙️ 관리자</h2><div style="width:50px"></div></div>
+<div class="admin-tabs"><button id="tbn-basic" class="tab-btn active" onclick="showAdmin('basic')">🏠 기본</button><button id="tbn-theme" class="tab-btn inactive" onclick="showAdmin('theme')">🎨 테마</button><button id="tbn-missions" class="tab-btn inactive" onclick="showAdmin('missions')">📍 미션</button><button id="tbn-rewards" class="tab-btn inactive" onclick="showAdmin('rewards')">🎁 보상</button><button id="tbn-qrcodes" class="tab-btn inactive" onclick="showAdmin('qrcodes')">📱 QR</button><button id="tbn-participants" class="tab-btn inactive" onclick="showAdmin('participants')">👥 참가자</button><button id="tbn-data" class="tab-btn inactive" onclick="showAdmin('data')">💾 데이터</button></div>
+
+<!-- 기본 -->
+<div id="adm-basic" class="admin-section active">
+<div class="admin-group"><label class="admin-label">🎪 축제 이름</label><input id="ab-name" class="inp" placeholder="축제 이름"><div style="height:12px"></div><label class="admin-label">📝 부제목</label><input id="ab-sub" class="inp" placeholder="부제목"><div style="height:12px"></div><div style="display:flex;gap:10px"><div style="flex:1"><label class="admin-label">🎭 아이콘</label><input id="ab-icon" class="inp" placeholder="🗺️" style="text-align:center;font-size:28px"></div><div style="flex:1"><label class="admin-label">🔑 비밀번호</label><input id="ab-pw" class="inp" type="text" placeholder="1234"></div></div></div>
+
+<!-- 로고 설정 -->
+<div class="admin-group">
+<label class="admin-label" style="font-size:15px">🏛️ 메인화면 하단 로고</label>
+<p style="font-size:11px;color:var(--text-dim);margin-bottom:12px">메인 화면 하단에 표시될 로고 이미지를 업로드하세요 (PNG 권장)</p>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+<div class="upload-zone" style="padding:14px" onclick="document.getElementById('ab-logo1-file').click()">
+<input type="file" id="ab-logo1-file" accept="image/*" style="display:none" onchange="onLogoUpload(1,this)">
+<div id="ab-logo1-preview"></div>
+</div>
+<div class="upload-zone" style="padding:14px" onclick="document.getElementById('ab-logo2-file').click()">
+<input type="file" id="ab-logo2-file" accept="image/*" style="display:none" onchange="onLogoUpload(2,this)">
+<div id="ab-logo2-preview"></div>
+</div>
+</div>
+<label class="admin-label">로고 하단 텍스트</label>
+<input id="ab-logo-text" class="inp inp-sm" placeholder="대전광역시 · 대전관광공사">
+</div>
+
+<button class="btn btn-accent" onclick="saveAdminBasic()">💾 기본 설정 저장</button>
+<div class="divider"></div>
+<div class="admin-group"><label class="admin-label">🔥 Firebase 연결</label><p id="ab-fb-status" style="font-size:13px;margin-bottom:10px"></p><textarea id="ab-fb-json" class="inp" rows="4" placeholder="Firebase 설정 JSON" style="font-size:12px;resize:vertical"></textarea><button class="btn btn-ghost" style="margin-top:8px;width:100%" onclick="saveFirebaseConfig()">Firebase 연결하기</button></div>
+</div>
+
+<!-- 테마 -->
+<div id="adm-theme" class="admin-section">
+<div class="admin-group"><label class="admin-label">🎨 테마 프리셋 (12종)</label><div id="at-grid" class="theme-grid"></div></div>
+<div id="at-custom" class="admin-group" style="display:none"><label class="admin-label">🖌️ 커스텀 테마 기본 색상</label><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div class="color-row"><input type="color" id="cc-primary" class="color-inp"><label>메인</label></div><div class="color-row"><input type="color" id="cc-secondary" class="color-inp"><label>보조</label></div><div class="color-row"><input type="color" id="cc-accent" class="color-inp"><label>강조</label></div><div class="color-row"><input type="color" id="cc-bg-start" class="color-inp"><label>배경1</label></div><div class="color-row"><input type="color" id="cc-bg-mid" class="color-inp"><label>배경2</label></div><div class="color-row"><input type="color" id="cc-bg-end" class="color-inp"><label>배경3</label></div></div></div>
+<div class="admin-group"><label class="admin-label">🔧 색상 커스터마이징</label>
+<p style="font-size:11px;color:var(--text-dim);margin-bottom:10px">프리셋 테마를 기반으로 색상만 원하는 대로 바꿀 수 있어요</p>
+<div class="toggle-row"><div id="at-ov-on" class="toggle" onclick="toggleColorOverride()"></div><span style="font-size:13px;color:var(--text-muted)">색상 직접 수정 활성화</span></div>
+<div id="at-ov-panel" style="display:none;margin-top:12px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+<div class="color-row"><input type="color" id="ov-primary" class="color-inp" oninput="updateOverrideColor('primary')"><label>메인</label></div>
+<div class="color-row"><input type="color" id="ov-secondary" class="color-inp" oninput="updateOverrideColor('secondary')"><label>보조</label></div>
+<div class="color-row"><input type="color" id="ov-accent" class="color-inp" oninput="updateOverrideColor('accent')"><label>강조</label></div>
+<div class="color-row"><input type="color" id="ov-bg-start" class="color-inp" oninput="updateOverrideColor('bgStart')"><label>배경1</label></div>
+<div class="color-row"><input type="color" id="ov-bg-mid" class="color-inp" oninput="updateOverrideColor('bgMid')"><label>배경2</label></div>
+<div class="color-row"><input type="color" id="ov-bg-end" class="color-inp" oninput="updateOverrideColor('bgEnd')"><label>배경3</label></div>
+</div></div></div>
+<div class="admin-group"><label class="admin-label">✏️ 글자 색상</label>
+<div class="toggle-row"><div id="at-title-color-on" class="toggle" onclick="toggleTitleColor()"></div><input type="color" id="at-title-color" class="color-inp" style="width:36px;height:36px" oninput="if(config.titleColor){config.titleColor=this.value;applyTheme()}"><span style="font-size:13px;color:var(--text-muted)">제목 색상 (끄면 그라데이션)</span></div>
+<div class="toggle-row"><div id="at-text-color-on" class="toggle" onclick="toggleTextColor()"></div><input type="color" id="at-text-color" class="color-inp" style="width:36px;height:36px" oninput="if(config.textColor){config.textColor=this.value;applyTheme()}"><span style="font-size:13px;color:var(--text-muted)">본문 텍스트 색상</span></div>
+<div class="toggle-row"><div id="at-btn-color-on" class="toggle" onclick="toggleBtnColor()"></div><input type="color" id="at-btn-color" class="color-inp" style="width:36px;height:36px" oninput="if(config.btnTextColor){config.btnTextColor=this.value;applyTheme()}"><span style="font-size:13px;color:var(--text-muted)">버튼 글자 색상</span></div>
+</div>
+<div class="admin-group"><label class="admin-label">🔤 제목 폰트 (33종)</label><p style="font-size:11px;color:var(--text-dim);margin-bottom:8px">카테고리별로 분류되어 있어요. 터치하면 즉시 미리보기!</p><div id="at-font-display" style="max-height:350px;overflow-y:auto;padding-right:4px"></div></div>
+<div class="admin-group"><label class="admin-label">📖 본문 폰트 (15종)</label><select id="at-font-body" class="inp" onchange="config.fontBody=this.value;applyTheme()"></select></div>
+<div class="admin-group"><label class="admin-label">🖼️ 배경 이미지</label>
+<div class="upload-zone" onclick="document.getElementById('at-bg-file').click()"><input type="file" id="at-bg-file" accept="image/*" style="display:none" onchange="onBgImageUpload(this)"><div id="at-bg-preview"></div></div>
+<div style="display:flex;gap:10px;margin-top:10px">
+<div style="flex:1"><label class="admin-label" style="font-size:11px">오버레이</label><input id="at-bg-overlay" class="inp inp-xs" placeholder="rgba(0,0,0,0.3)" style="font-size:11px"></div>
+<div style="flex:1"><label class="admin-label" style="font-size:11px">맞춤</label><select id="at-bg-fit" class="inp inp-xs" style="font-size:11px"><option value="cover">꽉 채우기</option><option value="contain">비율 유지</option><option value="100% 100%">늘리기</option></select></div>
+</div>
+<div class="toggle-row" style="margin-top:6px"><div id="at-bg-fixed" class="toggle on" onclick="toggleBgFixed()"></div><span style="font-size:12px;color:var(--text-dim)">배경 고정 (스크롤해도 안 움직임)</span></div>
+</div>
+<div class="admin-group"><label class="admin-label">🎀 장식 PNG 이미지 (최대 8개)</label>
+<p style="font-size:11px;color:var(--text-dim);margin-bottom:10px">투명 PNG/GIF를 올려 화면을 꾸며보세요!</p>
+<div id="at-deco-list"></div>
+<div class="upload-zone" style="padding:16px;margin-top:8px" onclick="document.getElementById('at-deco-file').click()"><input type="file" id="at-deco-file" accept="image/png,image/gif,image/webp,image/svg+xml" style="display:none" onchange="onDecoUpload(this)"><span style="font-size:24px">➕</span><p style="font-size:12px;color:var(--text-muted);margin-top:4px">장식 이미지 추가</p></div></div>
+<button class="btn btn-accent" onclick="saveAdminTheme()">💾 테마 전체 저장</button>
+</div>
+
+<!-- 미션 -->
+<div id="adm-missions" class="admin-section"><div id="am-list"></div><button id="am-add-btn" class="btn btn-ghost" style="width:100%;margin-top:4px" onclick="addMission()">+ 미션 추가 (최대 10개)</button><button class="btn btn-accent" style="margin-top:8px" onclick="saveAdminMissions()">💾 미션 저장</button></div>
+<!-- 보상 -->
+<div id="adm-rewards" class="admin-section"><div class="admin-group"><label class="admin-label">🏆 보상 제목</label><input id="ar-title" class="inp" placeholder="보상 제목"><div style="height:12px"></div><label class="admin-label">📋 보상 설명</label><textarea id="ar-desc" class="inp" rows="6" placeholder="보상 설명" style="resize:vertical"></textarea></div><button class="btn btn-accent" onclick="saveAdminRewards()">💾 보상 저장</button></div>
+<!-- QR -->
+<div id="adm-qrcodes" class="admin-section"><p style="font-size:13px;color:var(--text-muted);text-align:center;margin-bottom:8px">QR코드를 인쇄하여 숨겨주세요</p><div id="aq-grid" style="display:grid;grid-template-columns:1fr;gap:14px;max-width:300px;margin:0 auto"></div><button class="btn btn-accent" style="margin-top:16px" onclick="window.print()">🖨️ 인쇄하기</button></div>
+<!-- 참가자 -->
+<div id="adm-participants" class="admin-section"><div style="display:flex;gap:10px;margin-bottom:14px"><div class="stat-card"><div class="stat-num" id="ap-total" style="color:var(--primary)">0</div><div style="font-size:11px;color:var(--text-dim)">참가자</div></div><div class="stat-card"><div class="stat-num" id="ap-complete" style="color:var(--success)">0</div><div style="font-size:11px;color:var(--text-dim)">완료</div></div><div class="stat-card"><div class="stat-num" id="ap-progress" style="color:var(--accent)">0</div><div style="font-size:11px;color:var(--text-dim)">평균</div></div></div><div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button class="btn btn-ghost btn-sm" onclick="renderAdminParticipants()">🔄 새로고침</button></div><div id="ap-list"></div></div>
+<!-- 데이터 -->
+<div id="adm-data" class="admin-section"><input type="file" id="ad-import-file" accept=".json" style="display:none" onchange="onImportConfig(this)"><div class="admin-group"><label class="admin-label" style="font-size:15px">📦 설정 백업 & 복원</label><div style="display:flex;gap:8px"><button class="btn btn-accent btn-sm" style="flex:1" onclick="exportConfig()">⬇️ 내보내기</button><button class="btn btn-ghost btn-sm" style="flex:1" onclick="importConfig()">⬆️ 가져오기</button></div></div><div class="admin-group"><label class="admin-label" style="font-size:15px">📊 참가자 데이터</label><button class="btn btn-accent btn-sm" style="width:100%" onclick="exportParticipants()">📥 CSV 다운로드</button></div><div class="divider"></div><div class="admin-group" style="border:1px solid rgba(255,107,107,.2)"><label class="admin-label" style="color:#FF6B6B">⚠️ 위험 구역</label><button class="btn btn-danger" style="width:100%;margin-bottom:8px" onclick="resetAllData()">🗑️ 참가자 전체 삭제</button><button class="btn btn-danger" style="width:100%" onclick="resetConfigToDefault()">🔄 설정 초기화</button></div></div>
+</div>
+</body>
+</html>
