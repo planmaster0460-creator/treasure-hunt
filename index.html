@@ -60,7 +60,7 @@ const DEFAULT_CONFIG = {
   cardBg: "#FFFFFF",
   fontFamily: "'Noto Sans KR', sans-serif",
   titleFont: "'Black Han Sans', sans-serif",
-  completionMessage: "축하합니다! 🎉\n모든 스탬프를 수집했습니다!\n종합안내소에서 선물을 수령하세요!",
+  completionMessage: "축하합니다! 🎉\n모든 스탬프를 수집했습니다!\n\n📍 DCC 2전시장 종합안내소에서\n기념품을 수령하세요!\n\n※ 기념품 소진 시 이벤트가 조기 종료될 수 있습니다.",
   festivalInfo: "2026 대전 사이언스 페스티벌은 대전광역시 엑스포시민광장 일대에서 개최됩니다.\n\n▶ 기간: 2026년 10월 15일 ~ 10월 20일\n▶ 장소: 대전 엑스포시민광장 및 과학문화거리\n▶ 주최: 대전광역시\n▶ 주관: 대전관광공사\n\n다양한 과학 체험 프로그램과 공연, 전시가 준비되어 있습니다.",
   apiKey: "",
   aiCharImage: null,
@@ -378,7 +378,7 @@ function App() {
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
           max_tokens: 1000,
-          system: `당신은 "${config.festivalName}"의 AI 안내 매니저입니다. 한국어로 친절하고 간결하게(3-4문장) 답변하세요.\n\n[축제 정보]\n${config.festivalInfo}\n\n[스탬프 투어 장소]\n${config.locations.map((l, i) => `${i + 1}. ${l.name}: ${l.desc} - 미션: ${l.mission}`).join("\n")}\n\n총 ${config.locations.length}개 장소 방문 → QR 스캔 → 스탬프 수집 → 종합안내소에서 선물 수령`,
+          system: `당신은 "${config.festivalName}"의 AI 안내 매니저입니다. 한국어로 친절하고 간결하게(3-4문장) 답변하세요.\n\n[축제 정보]\n${config.festivalInfo}\n\n[스탬프 투어 장소]\n${config.locations.map((l, i) => `${i + 1}. ${l.name}: ${l.desc} - 미션: ${l.mission}`).join("\n")}\n\n총 ${config.locations.length}개 장소 방문 → QR 스캔 → 스탬프 수집 → DCC 2전시장 종합안내소에서 기념품 수령\n※ 기념품 소진 시 이벤트가 조기 종료될 수 있습니다.`,
           messages: [
             ...chatMessages.slice(-10).map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.text })),
             { role: "user", content: userMsg },
@@ -562,7 +562,7 @@ function App() {
           {isCompleted ? (
             <div>
               <div style={{ padding: 14, background: "#ecfdf5", borderRadius: 12, marginBottom: 14, textAlign: "center" }}>
-                <p style={{ fontSize: 13, color: "#065f46", fontWeight: 600, lineHeight: 1.6 }}>✅ 스탬프 투어는 1인 1회만 참여 가능합니다.<br />종합안내소에서 선물을 수령해주세요!</p>
+                <p style={{ fontSize: 13, color: "#065f46", fontWeight: 600, lineHeight: 1.6 }}>✅ 스탬프 투어는 1인 1회만 참여 가능합니다.<br />📍 DCC 2전시장 종합안내소에서 기념품을 수령해주세요!<br /><span style={{ fontSize: 11, fontWeight: 400, color: "#64748b" }}>※ 기념품 소진 시 이벤트가 조기 종료될 수 있습니다.</span></p>
               </div>
               <button onClick={handleReturnContinue} style={{ width: "100%", padding: 15, borderRadius: 14, border: "none", background: `linear-gradient(135deg, ${config.accentColor}, #f59e0b)`, color: "#fff", fontSize: 17, fontWeight: 800, cursor: "pointer", fontFamily: config.titleFont, letterSpacing: 1 }}>
                 🏆 완료 화면 보기
@@ -1056,7 +1056,7 @@ function App() {
         <div style={{ marginTop: 12, height: 7, background: "#e8edf2", borderRadius: 4, overflow: "hidden" }}>
           <div style={{ height: "100%", width: `${(stampCount / Math.max(config.locations.length, 1)) * 100}%`, background: `linear-gradient(90deg, ${config.primaryColor}, ${config.accentColor})`, borderRadius: 4, transition: "width 0.6s cubic-bezier(0.34,1.56,0.64,1)" }} />
         </div>
-        {allStamped && <button onClick={() => setShowComplete(true)} style={{ width: "100%", marginTop: 12, padding: 13, borderRadius: 12, border: "none", background: `linear-gradient(135deg, ${config.accentColor}, #f59e0b)`, color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", animation: "pulse 2s infinite", fontFamily: config.titleFont }}>🏆 선물 수령하기</button>}
+        {allStamped && <button onClick={() => setShowComplete(true)} style={{ width: "100%", marginTop: 12, padding: 13, borderRadius: 12, border: "none", background: `linear-gradient(135deg, ${config.accentColor}, #f59e0b)`, color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", animation: "pulse 2s infinite", fontFamily: config.titleFont }}>🏆 기념품 수령하기</button>}
       </div>
 
       {/* ─── SCAN & MAP BUTTONS ─── */}
