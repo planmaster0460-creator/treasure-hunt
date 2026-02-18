@@ -4,312 +4,1047 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#0A2463">
-<title>2026 대전 사이언스 페스티벌 - AI 스탬프 투어</title>
-<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@300;400;500;700;900&family=Jua&family=Do+Hyeon&family=Gugi&family=Gaegu&family=Gamja+Flower&family=Gothic+A1:wght@400;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>스탬프 투어</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body,#root{width:100%;min-height:100vh;min-height:100dvh}
-body{font-family:'Noto Sans KR',sans-serif;-webkit-font-smoothing:antialiased;overscroll-behavior:none}
-input,textarea,select,button{font-family:inherit;outline:none}
-button{cursor:pointer}
-::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#ccc;border-radius:4px}
-@keyframes floatDown{0%{transform:translateY(-10vh) rotate(0);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateY(110vh) rotate(360deg);opacity:0}}
-@keyframes heroFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
-@keyframes bounceIn{0%{transform:scale(.3);opacity:0}50%{transform:scale(1.05)}70%{transform:scale(.95)}100%{transform:scale(1);opacity:1}}
-@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.02)}}
-@keyframes slideUp{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
-@keyframes scanLine{0%{top:10%}50%{top:85%}100%{top:10%}}
-@keyframes blink{0%,100%{opacity:.2}50%{opacity:1}}
-@keyframes toastIn{0%{transform:translateX(-50%) translateY(-30px);opacity:0}100%{transform:translateX(-50%) translateY(0);opacity:1}}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-.abtn{position:fixed;top:10px;right:10px;width:40px;height:40px;z-index:998;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(255,255,255,.08);border:none;font-size:18px;opacity:0;transition:opacity .3s,background .3s}
-.abtn:hover{opacity:1!important;background:rgba(0,0,0,.1)}
-@media(hover:none){.abtn{opacity:.12}}
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body, #root { width: 100%; min-height: 100vh; min-height: 100dvh; }
+  body { font-family: 'Noto Sans KR', sans-serif; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
 </style>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script>
+// ─── localStorage polyfill for window.storage ───
+window.storage = {
+  async get(key, shared) {
+    const v = localStorage.getItem("st_" + key);
+    if (v === null) throw new Error("Key not found");
+    return { key, value: v, shared: !!shared };
+  },
+  async set(key, value, shared) {
+    localStorage.setItem("st_" + key, value);
+    return { key, value, shared: !!shared };
+  },
+  async delete(key, shared) {
+    localStorage.removeItem("st_" + key);
+    return { key, deleted: true, shared: !!shared };
+  },
+  async list(prefix, shared) {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith("st_" + (prefix || ""))) keys.push(k.slice(3));
+    }
+    return { keys, prefix, shared: !!shared };
+  }
+};
+</script>
 </head>
 <body>
 <div id="root"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script>
-"use strict";
+<script type="text/babel" data-type="module">
+const { useState, useEffect, useRef, useCallback } = React;
 
-// ─── Firebase Init (graceful fallback) ───
-var db=null,PCOL="stamp_participants";
-try{if(typeof firebase!=="undefined"&&firebase.initializeApp){
-firebase.initializeApp({apiKey:"AIzaSyDf0FS-HBKDErSfUzc8cLP-NgnuOPgdpl4",authDomain:"treasure-hunt-cc9bb.firebaseapp.com",projectId:"treasure-hunt-cc9bb",storageBucket:"treasure-hunt-cc9bb.firebasestorage.app",messagingSenderId:"418214737669",appId:"1:418214737669:web:cde3ea516eb54f722e296c"});
-db=firebase.firestore();console.log("Firebase connected!")}}catch(e){console.warn("Firebase unavailable, using local mode",e)}
 
-const el=React.createElement,{useState,useEffect,useRef}=React;
+/* ─── DEFAULT CONFIG ─── */
+const DEFAULT_CONFIG = {
+  festivalName: "2026 대전 사이언스 페스티벌",
+  subtitle: "모바일 AI 스탬프 투어",
+  primaryColor: "#0A2463",
+  secondaryColor: "#00B4D8",
+  accentColor: "#FB8500",
+  bgColor: "#F0F7FF",
+  textColor: "#1B1B2F",
+  cardBg: "#FFFFFF",
+  fontFamily: "'Noto Sans KR', sans-serif",
+  titleFont: "'Black Han Sans', sans-serif",
+  completionMessage: "축하합니다! 🎉\n모든 스탬프를 수집했습니다!\n종합안내소에서 선물을 수령하세요!",
+  festivalInfo: "2026 대전 사이언스 페스티벌은 대전광역시 엑스포시민광장 일대에서 개최됩니다.\n\n▶ 기간: 2026년 10월 15일 ~ 10월 20일\n▶ 장소: 대전 엑스포시민광장 및 과학문화거리\n▶ 주최: 대전광역시\n▶ 주관: 대전관광공사\n\n다양한 과학 체험 프로그램과 공연, 전시가 준비되어 있습니다.",
+  apiKey: "",
+  aiCharImage: null,
+  heroImage: null,
+  stampImage: null,
+  stampEmptyImage: null,
+  mapImage: null,
+  locations: [
+    { id: "loc1", name: "과학체험관", icon: "🔬", code: "DJSF2026-A1", mission: "과학체험관에서 VR 우주탐험을 체험하고 스탬프를 받으세요!", desc: "첨단 과학기술을 직접 체험할 수 있는 공간", iconImage: null },
+    { id: "loc2", name: "로켓전시장", icon: "🚀", code: "DJSF2026-B2", mission: "한국형 발사체 누리호 모형 앞에서 스탬프를 받으세요!", desc: "우주 발사체와 위성의 역사를 한눈에", iconImage: null },
+    { id: "loc3", name: "AI로봇관", icon: "🤖", code: "DJSF2026-C3", mission: "AI 로봇과 대화를 나누고 스탬프를 받으세요!", desc: "인공지능과 로봇의 미래를 만나는 곳", iconImage: null },
+    { id: "loc4", name: "생명과학관", icon: "🧬", code: "DJSF2026-D4", mission: "DNA 추출 체험을 완료하고 스탬프를 받으세요!", desc: "생명의 신비를 탐구하는 체험 공간", iconImage: null },
+    { id: "loc5", name: "에너지파빌리온", icon: "⚡", code: "DJSF2026-E5", mission: "신재생에너지 퀴즈를 풀고 스탬프를 받으세요!", desc: "미래 에너지 기술을 배우는 친환경 공간", iconImage: null },
+    { id: "loc6", name: "천문우주관", icon: "🌌", code: "DJSF2026-F6", mission: "천체망원경으로 별을 관측하고 스탬프를 받으세요!", desc: "별과 우주의 신비를 탐험하는 곳", iconImage: null },
+  ],
+};
 
-const DEF={festivalName:"2026 대전 사이언스 페스티벌",subtitle:"모바일 AI 스탬프 투어",
-primaryColor:"#0A2463",secondaryColor:"#00B4D8",accentColor:"#FB8500",bgColor:"#F0F7FF",textColor:"#1B1B2F",cardBg:"#FFFFFF",
-fontFamily:"'Noto Sans KR',sans-serif",titleFont:"'Black Han Sans',sans-serif",
-completionMessage:"축하합니다! 🎉\n모든 스탬프를 수집했습니다!\n종합안내소에서 선물을 수령하세요!",
-festivalInfo:"2026 대전 사이언스 페스티벌은 대전광역시 엑스포시민광장 일대에서 개최됩니다.\n\n▶ 기간: 2026년 10월 15일~20일\n▶ 장소: 대전 엑스포시민광장\n▶ 주최: 대전광역시 / 주관: 대전관광공사\n\n다양한 과학 체험 프로그램과 공연, 전시가 준비되어 있습니다.",
-apiKey:"",heroImage:null,stampImage:null,stampEmptyImage:null,mapImage:null,
-locations:[
-{id:"loc1",name:"과학체험관",icon:"🔬",code:"DJSF2026-A1",mission:"VR 우주탐험을 체험하고 스탬프를 받으세요!",desc:"첨단 과학기술 체험 공간",iconImage:null},
-{id:"loc2",name:"로켓전시장",icon:"🚀",code:"DJSF2026-B2",mission:"누리호 모형 앞에서 스탬프를 받으세요!",desc:"우주 발사체와 위성의 역사",iconImage:null},
-{id:"loc3",name:"AI로봇관",icon:"🤖",code:"DJSF2026-C3",mission:"AI 로봇과 대화하고 스탬프를 받으세요!",desc:"인공지능과 로봇의 미래",iconImage:null},
-{id:"loc4",name:"생명과학관",icon:"🧬",code:"DJSF2026-D4",mission:"DNA 추출 체험 후 스탬프를 받으세요!",desc:"생명의 신비 탐구 공간",iconImage:null},
-{id:"loc5",name:"에너지파빌리온",icon:"⚡",code:"DJSF2026-E5",mission:"신재생에너지 퀴즈를 풀고 스탬프를 받으세요!",desc:"미래 에너지 기술 체험",iconImage:null},
-{id:"loc6",name:"천문우주관",icon:"🌌",code:"DJSF2026-F6",mission:"천체망원경으로 별을 관측하고 스탬프를 받으세요!",desc:"별과 우주의 신비 탐험",iconImage:null}]};
+const ADMIN_PASSWORD = "0460";
+const EMOJI_LIST = ["🔬","🚀","🤖","🧬","⚡","🌌","🎪","🎭","🎨","🎵","🏛","🌳","🎡","🎢","🎯","🏆","⭐","💎","🔭","🧪","🧲","🌍","☀️","🌊","🦕","🐉","🎓","📡","💡","🎈","🎁","🏅","🔮","🛸","🌈","🎶","🖼","🗿","⛩","🏰"];
 
-const ADMIN_PW="0460",EMOJIS=["🔬","🚀","🤖","🧬","⚡","🌌","🎪","🎭","🎨","🎵","🏛","🌳","🎡","🎢","🎯","🏆","⭐","💎","🔭","🧪","🧲","🌍","☀️","🌊","🦕","🐉","🎓","📡","💡","🎈","🎁","🏅","🔮","🛸","🌈","🎶","🖼","🗿","⛩","🏰"];
-function LS(k,v){const p="djsf_"+k;if(v===undefined){try{const d=localStorage.getItem(p);return d?JSON.parse(d):null}catch{return null}}try{localStorage.setItem(p,JSON.stringify(v))}catch{}}
-function getQR(d,s){return"https://api.qrserver.com/v1/create-qr-code/?size="+(s||200)+"x"+(s||200)+"&data="+encodeURIComponent(d)+"&format=png&margin=8"}
-function imgUp(cb,mx){const i=document.createElement("input");i.type="file";i.accept="image/*";i.onchange=function(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=function(re){const img=new Image();img.onload=function(){const c=document.createElement("canvas");let w=img.width,ht=img.height;mx=mx||800;if(w>mx||ht>mx){if(w>ht){ht=(ht/w)*mx;w=mx}else{w=(w/ht)*mx;ht=mx}}c.width=w;c.height=ht;c.getContext("2d").drawImage(img,0,0,w,ht);cb(c.toDataURL("image/png",0.85))};img.src=re.target.result};r.readAsDataURL(f)};i.click()}
+function App() {
+  const [config, setConfig] = useState(DEFAULT_CONFIG);
+  const [screen, setScreen] = useState("loading");
+  const [user, setUser] = useState(null);
+  const [stamps, setStamps] = useState({});
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [adminAuth, setAdminAuth] = useState(false);
+  const [adminPw, setAdminPw] = useState("");
+  const [adminTab, setAdminTab] = useState("locations");
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [scanResult, setScanResult] = useState(null);
+  const [regForm, setRegForm] = useState({ name: "", birth: "", phone: "", agree: false });
+  const [showComplete, setShowComplete] = useState(false);
+  const [editLoc, setEditLoc] = useState(null);
+  const [participants, setParticipants] = useState([]);
+  const [adminPwError, setAdminPwError] = useState(false);
+  const [showMap, setShowMap] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [adminHover, setAdminHover] = useState(false);
+  const [showReturnPrompt, setShowReturnPrompt] = useState(false);
+  const [returnUser, setReturnUser] = useState(null);
+  const [isCompleted, setIsCompleted] = useState(false);
 
-function App(){
-const savedU=LS("user"),savedS=LS("stamps")||{},savedDocId=LS("docId");
-const[C,setC]=useState(()=>LS("config")||DEF);
-const[scr,setScr]=useState(savedU?"tour":"register");
-const[user,setUser]=useState(savedU);
-const[stamps,setStamps]=useState(savedS);
-const[docId,setDocId]=useState(savedDocId);
-const[showAdm,setShowAdm]=useState(false);
-const[admAuth,setAdmAuth]=useState(false);
-const[admPw,setAdmPw]=useState("");
-const[admTab,setAdmTab]=useState("locations");
-const[msgs,setMsgs]=useState([]);
-const[chatIn,setChatIn]=useState("");
-const[chatLoad,setChatLoad]=useState(false);
-const[scanRes,setScanRes]=useState(null);
-const[reg,setReg]=useState({name:"",birth:"",phone:"",agree:false});
-const[showComp,setShowComp]=useState(false);
-const[editLoc,setEditLoc]=useState(null);
-const[fbParts,setFbParts]=useState([]);
-const[pwErr,setPwErr]=useState(false);
-const[showMap,setShowMap]=useState(false);
-const[emojiPk,setEmojiPk]=useState(null);
-const[scanning,setScanning]=useState(false);
-const[camErr,setCamErr]=useState(null);
-const[toast,setToast]=useState(null);
-const[dirty,setDirty]=useState(false);
-const[showResume,setShowResume]=useState(!!savedU);
-const[fbOk,setFbOk]=useState(!!db);
-const chatEnd=useRef(null),vidRef=useRef(null),canRef=useRef(null),strRef=useRef(null),animRef=useRef(null),ttimer=useRef(null);
+  const chatEndRef = useRef(null);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const scanAnimRef = useRef(null);
+  const jsQRRef = useRef(null);
+  const toastTimer = useRef(null);
 
-// ─── Firebase: listen participants (admin) ───
-useEffect(()=>{
-  if(!db){setFbOk(false);return}
-  const unsub=db.collection(PCOL).orderBy("time","desc").onSnapshot(snap=>{
-    const list=[];snap.forEach(doc=>{list.push({id:doc.id,...doc.data()})});setFbParts(list);setFbOk(true);
-  },err=>{console.error("Firestore err:",err);setFbOk(false)});
-  return ()=>unsub();
-},[]);
+  // ─── Toast notification ───
+  const showToast = (msg, type = "success") => {
+    clearTimeout(toastTimer.current);
+    setToast({ msg, type });
+    toastTimer.current = setTimeout(() => setToast(null), 2200);
+  };
 
-useEffect(()=>{LS("stamps",stamps)},[stamps]);
-useEffect(()=>{if(C.locations.length>0&&C.locations.every(l=>stamps[l.id])&&!showComp&&scr==="tour")setShowComp(true)},[stamps,scr]);
-useEffect(()=>{chatEnd.current?.scrollIntoView({behavior:"smooth"})},[msgs]);
+  // ─── Load everything on mount ───
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await window.storage.get("stamp-config-v2");
+        if (r?.value) setConfig(JSON.parse(r.value));
+      } catch {}
+      try {
+        const r = await window.storage.get("stamp-participants-v2", true);
+        if (r?.value) setParticipants(JSON.parse(r.value));
+      } catch {}
+      // Check for returning user
+      let savedUser = null;
+      let savedStamps = {};
+      let savedCompleted = false;
+      try {
+        const r = await window.storage.get("stamp-user-v2");
+        if (r?.value) savedUser = JSON.parse(r.value);
+      } catch {}
+      try {
+        const r = await window.storage.get("stamp-progress-v2");
+        if (r?.value) savedStamps = JSON.parse(r.value);
+      } catch {}
+      try {
+        const r = await window.storage.get("stamp-completed-v2");
+        if (r?.value) savedCompleted = JSON.parse(r.value);
+      } catch {}
 
-const showT=(m,t)=>{clearTimeout(ttimer.current);setToast({m,t:t||"ok"});ttimer.current=setTimeout(()=>setToast(null),2500)};
-const updC=(nc)=>{setC(nc);setDirty(true)};
-const saveC=()=>{LS("config",C);setDirty(false);showT("✅ 저장 완료!")};
-const cnt=C.locations.filter(l=>stamps[l.id]).length;
-const allDone=C.locations.length>0&&cnt===C.locations.length;
+      if (savedUser) {
+        setReturnUser(savedUser);
+        setStamps(savedStamps);
+        setIsCompleted(savedCompleted);
+        setShowReturnPrompt(true);
+        setScreen("register");
+      } else {
+        setScreen("register");
+      }
+    })();
+  }, []);
 
-// ─── Firebase: save participant ───
-const fbSaveUser=async(u)=>{
-  if(!db)return null;
-  try{const ref=await db.collection(PCOL).add({name:u.name,birth:u.birth,phone:u.phone,time:u.time,stamps:{},completed:false});
-  setDocId(ref.id);LS("docId",ref.id);return ref.id}catch(e){console.error("FB save err:",e);return null}};
+  // ─── Load jsQR library ───
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js";
+    script.onload = () => { jsQRRef.current = window.jsQR; };
+    document.head.appendChild(script);
+    return () => { try { document.head.removeChild(script); } catch {} };
+  }, []);
 
-// ─── Firebase: update stamps ───
-const fbUpdateStamps=async(newStamps)=>{
-  if(!db)return;
-  const did=docId||LS("docId");if(!did)return;
-  const completed=C.locations.length>0&&C.locations.every(l=>newStamps[l.id]);
-  try{await db.collection(PCOL).doc(did).update({stamps:newStamps,completed:completed,
-    completedTime:completed?new Date().toISOString():null})}catch(e){console.error("FB update err:",e)}};
+  // ─── Save helpers ───
+  const saveConfig = async (nc) => {
+    setConfig(nc);
+    try { await window.storage.set("stamp-config-v2", JSON.stringify(nc)); } catch {}
+    showToast("✅ 저장 완료!");
+  };
 
-// ─── Register ───
-const doReg=async()=>{if(!reg.name||!reg.birth||!reg.phone||!reg.agree)return;
-  const u={name:reg.name,birth:reg.birth,phone:reg.phone,time:new Date().toISOString()};
-  setUser(u);LS("user",u);LS("stamps",{});setStamps({});
-  const lp=LS("parts")||[];LS("parts",[...lp,u]);
-  await fbSaveUser(u);
-  setScr("tour");showT("🎉 등록 완료!")};
-const doResume=()=>{setScr("tour");setShowResume(false);showT("👋 "+savedU.name+"님, 이어서 진행!")};
-const doNew=()=>{setShowResume(false);setUser(null);LS("user",null);LS("stamps",null);LS("docId",null);setStamps({});setDocId(null)};
-const doLogout=()=>{setUser(null);setStamps({});setDocId(null);LS("user",null);LS("stamps",null);LS("docId",null);setScr("register");setShowResume(false)};
+  const saveParticipants = async (l) => {
+    setParticipants(l);
+    try { await window.storage.set("stamp-participants-v2", JSON.stringify(l), true); } catch {}
+  };
 
-// ─── Scanner ───
-const startScan=async()=>{setScanning(true);setCamErr(null);setScanRes(null);
-try{const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:1280},height:{ideal:720}}});
-strRef.current=s;if(vidRef.current){vidRef.current.srcObject=s;vidRef.current.setAttribute("playsinline","true");await vidRef.current.play();doFrame()}}
-catch(er){setCamErr(er.name==="NotAllowedError"?"카메라 접근이 거부되었습니다.\n설정에서 카메라 권한을 허용해주세요.\n\n💡 아이폰: 설정 > Safari > 카메라\n💡 안드로이드: 브라우저 > 사이트 설정 > 카메라":"카메라를 시작할 수 없습니다.\n\n⚠️ https에서만 카메라가 작동합니다.")}};
-const doFrame=()=>{if(!vidRef.current||!canRef.current||!window.jsQR){animRef.current=requestAnimationFrame(doFrame);return}
-const v=vidRef.current,c=canRef.current;if(v.readyState!==v.HAVE_ENOUGH_DATA){animRef.current=requestAnimationFrame(doFrame);return}
-c.width=v.videoWidth;c.height=v.videoHeight;const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(v,0,0,c.width,c.height);
-const img=ctx.getImageData(0,0,c.width,c.height);const code=window.jsQR(img.data,img.width,img.height,{inversionAttempts:"dontInvert"});
-if(code?.data){onCode(code.data);return}animRef.current=requestAnimationFrame(doFrame)};
-const onCode=(data)=>{const loc=C.locations.find(l=>l.code===data);
-if(loc){if(stamps[loc.id])setScanRes({ok:0,msg:'이미 "'+loc.name+'" 스탬프를 수집했습니다!',ic:"🔄"});
-else{const ns={...stamps,[loc.id]:true};setStamps(ns);LS("stamps",ns);fbUpdateStamps(ns);setScanRes({ok:1,msg:'"'+loc.name+'" 스탬프 획득!',ic:"🎉"})}}
-else setScanRes({ok:0,msg:"유효하지 않은 QR코드입니다.",ic:"❌"});stopScan()};
-const stopScan=()=>{if(animRef.current)cancelAnimationFrame(animRef.current);if(strRef.current)strRef.current.getTracks().forEach(t=>t.stop());strRef.current=null;setScanning(false)};
+  const saveUser = async (u) => {
+    setUser(u);
+    try { await window.storage.set("stamp-user-v2", JSON.stringify(u)); } catch {}
+  };
 
-// ─── AI Chat ───
-const sendChat=async()=>{if(!chatIn.trim()||chatLoad)return;const m=chatIn.trim();setChatIn("");
-setMsgs(p=>[...p,{role:"user",text:m}]);setChatLoad(true);
-if(!C.apiKey){setMsgs(p=>[...p,{role:"assistant",text:"⚠️ AI 기능을 사용하려면 관리자가 API 키를 설정해야 합니다."}]);setChatLoad(false);return}
-try{const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
-headers:{"Content-Type":"application/json","x-api-key":C.apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,
-system:'당신은 "'+C.festivalName+'"의 AI 안내 매니저입니다. 한국어로 친절하게 3~4문장으로 답변하세요.\n\n[축제 정보]\n'+C.festivalInfo+'\n\n[스탬프 장소]\n'+C.locations.map((l,i)=>(i+1)+'. '+l.name+': '+l.desc+' - '+l.mission).join('\n')+'\n\n총 '+C.locations.length+'개 방문→QR스캔→스탬프→종합안내소 선물수령',
-messages:[...msgs.slice(-10).map(x=>({role:x.role==="user"?"user":"assistant",content:x.text})),{role:"user",content:m}]})});
-if(!r.ok)throw new Error(await r.text());const d=await r.json();
-setMsgs(p=>[...p,{role:"assistant",text:d.content?.map(c=>c.text||"").join("")||"잠시 후 다시 시도해주세요."}])}
-catch(er){let em="네트워크 오류가 발생했습니다.";if(String(er).includes("invalid"))em="⚠️ API 키가 유효하지 않습니다.";
-setMsgs(p=>[...p,{role:"assistant",text:em}])}setChatLoad(false)};
+  const saveStamps = async (s) => {
+    setStamps(s);
+    try { await window.storage.set("stamp-progress-v2", JSON.stringify(s)); } catch {}
+  };
 
-// ─── Components ───
-const SI=({loc,size:sz,stamped})=>{sz=sz||44;
-if(stamped&&C.stampImage)return el("img",{src:C.stampImage,style:{width:sz,height:sz,borderRadius:sz*.25,objectFit:"cover"}});
-if(!stamped&&C.stampEmptyImage)return el("img",{src:C.stampEmptyImage,style:{width:sz,height:sz,borderRadius:sz*.25,objectFit:"cover",opacity:.45}});
-if(loc?.iconImage)return el("div",{style:{width:sz,height:sz,borderRadius:sz*.25,overflow:"hidden",border:stamped?"3px solid "+C.accentColor:"3px solid #e2e8f0"}},el("img",{src:loc.iconImage,style:{width:"100%",height:"100%",objectFit:"cover"}}));
-return el("div",{style:{width:sz,height:sz,borderRadius:"50%",background:stamped?"linear-gradient(135deg,"+C.accentColor+","+C.secondaryColor+")":"#e2e8f0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:sz*.45,color:stamped?"#fff":"#b0b8c4",fontWeight:800,boxShadow:stamped?"0 4px 16px "+C.accentColor+"55":"inset 0 2px 4px rgba(0,0,0,.06)",transform:stamped?"scale(1)":"scale(.92)",transition:"all .4s"}},stamped?"✓":(loc?.icon||"?"))};
+  const allStamped = config.locations.length > 0 && config.locations.every(l => stamps[l.id]);
+  const stampCount = config.locations.filter(l => stamps[l.id]).length;
 
-const Toast=toast?el("div",{style:{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",zIndex:9999,padding:"12px 24px",borderRadius:14,background:toast.t==="ok"?"#065f46":"#991b1b",color:"#fff",fontSize:14,fontWeight:700,boxShadow:"0 8px 30px rgba(0,0,0,.25)",animation:"toastIn .3s",whiteSpace:"nowrap"}},toast.m):null;
-const AdminBtn=el("button",{className:"abtn",onClick:()=>setShowAdm(true),title:"관리자"},"⚙️");
-const PwModal=()=>el("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:2000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}},
-el("div",{style:{background:"#fff",borderRadius:20,padding:"28px 24px",width:"100%",maxWidth:320,textAlign:"center",boxShadow:"0 20px 60px rgba(0,0,0,.3)"}},
-el("div",{style:{fontSize:32,marginBottom:8}},"🔐"),el("p",{style:{fontSize:15,fontWeight:700,marginBottom:18}},"관리자 인증"),
-el("input",{type:"password",inputMode:"numeric",value:admPw,autoFocus:true,onChange:e=>{setAdmPw(e.target.value);setPwErr(false)},placeholder:"비밀번호",maxLength:10,
-onKeyDown:e=>{if(e.key==="Enter"){if(admPw===ADMIN_PW){setAdmAuth(true);setScr("admin");setShowAdm(false);setAdmPw("")}else setPwErr(true)}},
-style:{width:"100%",padding:14,borderRadius:12,border:"2px solid "+(pwErr?"#ef4444":"#e2e8f0"),fontSize:18,textAlign:"center",boxSizing:"border-box",letterSpacing:8}}),
-pwErr&&el("p",{style:{color:"#ef4444",fontSize:12,marginTop:8}},"비밀번호가 틀렸습니다"),
-el("div",{style:{display:"flex",gap:10,marginTop:18}},
-el("button",{onClick:()=>{setShowAdm(false);setAdmPw("");setPwErr(false)},style:{flex:1,padding:12,borderRadius:10,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:14}},"취소"),
-el("button",{onClick:()=>{if(admPw===ADMIN_PW){setAdmAuth(true);setScr("admin");setShowAdm(false);setAdmPw("")}else setPwErr(true)},style:{flex:1,padding:12,borderRadius:10,border:"none",background:C.primaryColor,color:"#fff",fontSize:14,fontWeight:700}},"확인"))));
-const SaveBar=dirty?el("div",{style:{position:"fixed",bottom:0,left:0,right:0,zIndex:200,padding:"12px 16px",background:"linear-gradient(135deg,#1e293b,#334155)",display:"flex",alignItems:"center",justifyContent:"space-between",boxShadow:"0 -4px 20px rgba(0,0,0,.2)",animation:"slideUp .3s"}},
-el("span",{style:{color:"#fbbf24",fontSize:13,fontWeight:600}},"⚠️ 변경사항이 있습니다"),
-el("button",{onClick:saveC,style:{padding:"10px 28px",borderRadius:10,border:"none",background:"linear-gradient(135deg,#22c55e,#16a34a)",color:"#fff",fontSize:14,fontWeight:800,boxShadow:"0 4px 12px rgba(34,197,94,.4)"}},"💾 저장하기")):null;
+  useEffect(() => {
+    if (allStamped && !showComplete && screen === "tour") {
+      setShowComplete(true);
+      setIsCompleted(true);
+      (async () => { try { await window.storage.set("stamp-completed-v2", JSON.stringify(true)); } catch {} })();
+    }
+  }, [allStamped, screen]);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMessages]);
 
-// ════════ REGISTER ════════
-if(scr==="register"){const ok=reg.name&&reg.birth.length>=6&&reg.phone.length>=12&&reg.agree;
-return el("div",{style:{fontFamily:C.fontFamily,minHeight:"100dvh",background:"linear-gradient(160deg,"+C.primaryColor+","+C.secondaryColor+")",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20,position:"relative"}},
-Toast,AdminBtn,showAdm&&!admAuth&&el(PwModal),
-el("div",{style:{position:"fixed",inset:0,overflow:"hidden",pointerEvents:"none"}},[0,1,2,3,4,5].map(i=>el("div",{key:i,style:{position:"absolute",width:6,height:6,borderRadius:"50%",background:"rgba(255,255,255,.15)",left:(15+i*15)+"%",top:"-10%",animation:"floatDown "+(8+i*2)+"s linear infinite",animationDelay:i*1.5+"s"}}))),
-C.heroImage?el("img",{src:C.heroImage,style:{width:140,height:140,objectFit:"contain",marginBottom:10,filter:"drop-shadow(0 8px 24px rgba(0,0,0,.3))",animation:"heroFloat 3s ease-in-out infinite"}}):el("div",{style:{width:120,height:120,borderRadius:"50%",background:"rgba(255,255,255,.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:56,marginBottom:10,border:"2px solid rgba(255,255,255,.2)",animation:"heroFloat 3s ease-in-out infinite"}},"🔬"),
-el("h1",{style:{fontFamily:C.titleFont,fontSize:28,color:"#fff",margin:"0 0 4px",textShadow:"0 3px 12px rgba(0,0,0,.3)",textAlign:"center"}},C.festivalName),
-el("p",{style:{color:"rgba(255,255,255,.85)",fontSize:14,letterSpacing:3,marginBottom:24,fontWeight:500}},C.subtitle),
-showResume&&savedU?el("div",{style:{background:"rgba(255,255,255,.97)",borderRadius:20,padding:20,width:"100%",maxWidth:380,marginBottom:16,boxShadow:"0 12px 40px rgba(0,0,0,.2)",animation:"fadeIn .4s"}},
-el("div",{style:{display:"flex",alignItems:"center",gap:12,marginBottom:14}},
-el("div",{style:{width:44,height:44,borderRadius:"50%",background:"linear-gradient(135deg,"+C.primaryColor+","+C.secondaryColor+")",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,color:"#fff"}},"👋"),
-el("div",null,el("div",{style:{fontSize:15,fontWeight:800,color:C.textColor}},savedU.name+"님, 다시 오셨군요!"),
-el("div",{style:{fontSize:12,color:"#64748b",marginTop:2}},"스탬프: "+Object.keys(savedS).length+"/"+C.locations.length+"개 진행중"))),
-el("div",{style:{display:"flex",gap:8}},
-el("button",{onClick:doResume,style:{flex:2,padding:12,borderRadius:12,border:"none",background:"linear-gradient(135deg,"+C.primaryColor+","+C.secondaryColor+")",color:"#fff",fontSize:14,fontWeight:800,boxShadow:"0 4px 16px "+C.primaryColor+"44"}},"🔄 이어서 하기"),
-el("button",{onClick:doNew,style:{flex:1,padding:12,borderRadius:12,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:13,color:"#64748b"}},"새로 등록"))):
-el("div",{style:{background:"rgba(255,255,255,.97)",borderRadius:24,padding:"28px 22px",width:"100%",maxWidth:380,boxShadow:"0 24px 64px rgba(0,0,0,.2)"}},
-el("h2",{style:{fontSize:17,fontWeight:800,color:C.textColor,marginBottom:20,textAlign:"center"}},"🎫 참여 등록"),
-[{k:"name",l:"이름",ph:"홍길동",im:"text"},{k:"birth",l:"주민번호 앞자리 (6자리)",ph:"990101",im:"numeric",mx:6},{k:"phone",l:"휴대폰 번호",ph:"010-1234-5678",im:"tel"}].map(f=>el("div",{key:f.k,style:{marginBottom:14}},
-el("label",{style:{fontSize:12,fontWeight:600,color:"#64748b",display:"block",marginBottom:5}},f.l),
-el("input",{value:reg[f.k],inputMode:f.im,maxLength:f.mx||20,placeholder:f.ph,onChange:e=>{let v=e.target.value;if(f.k==="birth")v=v.replace(/\D/g,"").slice(0,6);if(f.k==="phone"){v=v.replace(/\D/g,"").slice(0,11);if(v.length>7)v=v.slice(0,3)+"-"+v.slice(3,7)+"-"+v.slice(7);else if(v.length>3)v=v.slice(0,3)+"-"+v.slice(3)}setReg(p=>({...p,[f.k]:v}))},
-style:{width:"100%",padding:"13px 14px",borderRadius:12,border:"2px solid #e8edf2",fontSize:15,boxSizing:"border-box"}}))),
-el("label",{style:{display:"flex",alignItems:"flex-start",gap:10,padding:14,background:"#f8fafc",borderRadius:12,marginBottom:20,cursor:"pointer",border:reg.agree?"2px solid "+C.primaryColor+"30":"2px solid transparent"}},
-el("input",{type:"checkbox",checked:reg.agree,onChange:e=>setReg(p=>({...p,agree:e.target.checked})),style:{marginTop:2,width:20,height:20,accentColor:C.primaryColor,flexShrink:0}}),
-el("span",{style:{fontSize:11,color:"#64748b",lineHeight:1.6},dangerouslySetInnerHTML:{__html:'<b style="color:'+C.primaryColor+'">[필수]</b> 개인정보 수집·이용에 동의합니다.<br>수집: 이름, 주민번호 앞자리, 휴대폰번호<br>목적: 스탬프 투어 및 경품 지급<br>보유: 행사 종료 후 1개월 이내 파기'}})),
-el("button",{onClick:doReg,disabled:!ok,style:{width:"100%",padding:15,borderRadius:14,border:"none",background:ok?"linear-gradient(135deg,"+C.primaryColor+","+C.secondaryColor+")":"#cbd5e1",color:"#fff",fontSize:17,fontWeight:800,cursor:ok?"pointer":"not-allowed",fontFamily:C.titleFont,letterSpacing:1,boxShadow:ok?"0 6px 24px "+C.primaryColor+"44":"none"}},"🚀 투어 시작하기")),
-el("p",{style:{color:"rgba(255,255,255,.5)",fontSize:10,marginTop:20,textAlign:"center"}},"© 2026 대전광역시"))}
+  // ─── Register ───
+  const handleRegister = () => {
+    if (!regForm.name || !regForm.birth || !regForm.phone || !regForm.agree) return;
+    const u = { name: regForm.name, birth: regForm.birth, phone: regForm.phone, time: new Date().toISOString() };
+    saveUser(u);
+    saveParticipants([...participants, u]);
+    saveStamps({});
+    setScreen("tour");
+    showToast("🎉 등록 완료! 투어를 시작하세요!");
+  };
 
-// ════════ ADMIN ════════
-if(scr==="admin"&&admAuth){
-const totalP=fbParts.length,compP=fbParts.filter(p=>p.completed).length;
-const tabs=[{id:"dashboard",ic:"📊",l:"현황"},{id:"locations",ic:"📍",l:"장소"},{id:"design",ic:"🎨",l:"디자인"},{id:"api",ic:"🤖",l:"AI설정"},{id:"qrcodes",ic:"📱",l:"QR코드"},{id:"festival",ic:"📋",l:"축제정보"},{id:"users",ic:"👥",l:"참가자"}];
-return el("div",{style:{fontFamily:C.fontFamily,background:"#f1f5f9",minHeight:"100vh",paddingBottom:dirty?70:0}},
-Toast,SaveBar,
-el("div",{style:{background:"#1e293b",color:"#fff",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}},
-el("div",{style:{display:"flex",alignItems:"center",gap:8}},el("span",{style:{fontSize:18}},"⚙️"),el("span",{style:{fontWeight:800,fontSize:15}},"관리자 모드")),
-el("button",{onClick:()=>{if(dirty&&confirm("저장하지 않은 변경사항이 있습니다. 저장할까요?"))saveC();setScr(user?"tour":"register")},style:{background:"rgba(255,255,255,.12)",border:"none",color:"#fff",padding:"7px 14px",borderRadius:8,fontSize:12,fontWeight:600}},"✕ 나가기")),
-el("div",{style:{display:"flex",overflowX:"auto",background:"#fff",borderBottom:"2px solid #f1f5f9",position:"sticky",top:49,zIndex:99}},tabs.map(t=>el("button",{key:t.id,onClick:()=>setAdmTab(t.id),style:{padding:"11px 12px",border:"none",borderBottom:admTab===t.id?"3px solid "+C.primaryColor:"3px solid transparent",background:"transparent",color:admTab===t.id?C.primaryColor:"#94a3b8",fontWeight:admTab===t.id?700:400,fontSize:11,whiteSpace:"nowrap"}},t.ic+" "+t.l))),
-el("div",{style:{padding:16,maxWidth:600,margin:"0 auto"}},
+  // ─── Return user continue ───
+  const handleReturnContinue = () => {
+    setUser(returnUser);
+    setShowReturnPrompt(false);
+    setScreen("tour");
+    showToast(`👋 ${returnUser.name}님, 다시 오셨군요!`);
+  };
 
-// ── DASHBOARD ──
-admTab==="dashboard"&&el("div",null,
-el("h3",{style:{fontSize:15,fontWeight:800,marginBottom:14}},"📊 실시간 현황판"),
-!fbOk&&el("div",{style:{padding:14,background:"#fef2f2",borderRadius:12,marginBottom:14,border:"1px solid #fecaca",fontSize:12,color:"#991b1b",lineHeight:1.6}},db===null?"⚠️ Firebase 스크립트를 불러올 수 없습니다. 미리보기에서는 로컬 모드로 동작합니다. 실제 웹호스팅에 배포하면 정상 연동됩니다.":"⚠️ Firestore 연결 오류. Firebase 콘솔에서 Firestore 규칙을 확인해주세요."),
-el("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}},
-[{n:"총 참가자",v:totalP,ic:"👥",bg:"#0A2463"},{n:"완료",v:compP,ic:"🏆",bg:"#22c55e"},{n:"진행중",v:totalP-compP,ic:"🔄",bg:"#f59e0b"}].map(s=>el("div",{key:s.n,style:{background:s.bg,borderRadius:14,padding:"16px 12px",textAlign:"center",color:"#fff"}},
-el("div",{style:{fontSize:24,marginBottom:4}},s.ic),
-el("div",{style:{fontSize:26,fontWeight:900,fontFamily:C.titleFont}},s.v),
-el("div",{style:{fontSize:10,opacity:.8,marginTop:2}},s.n)))),
-// Location stats
-el("div",{style:{background:"#fff",borderRadius:14,padding:16,marginBottom:12}},
-el("h4",{style:{fontSize:13,fontWeight:700,marginBottom:12}},"📍 장소별 방문 현황"),
-C.locations.map(loc=>{const vis=fbParts.filter(p=>p.stamps&&p.stamps[loc.id]).length;const pct=totalP>0?Math.round(vis/totalP*100):0;
-return el("div",{key:loc.id,style:{marginBottom:10}},
-el("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:4}},
-el("span",null,loc.icon+" "+loc.name),
-el("span",{style:{fontWeight:700,color:C.primaryColor}},vis+"명 ("+pct+"%)")),
-el("div",{style:{height:8,background:"#e8edf2",borderRadius:4,overflow:"hidden"}},
-el("div",{style:{height:"100%",width:pct+"%",background:"linear-gradient(90deg,"+C.primaryColor+","+C.accentColor+")",borderRadius:4,transition:"width .5s"}})))})),
-// Recent activity
-el("div",{style:{background:"#fff",borderRadius:14,padding:16}},
-el("h4",{style:{fontSize:13,fontWeight:700,marginBottom:12}},"🕐 최근 참가자"),
-fbParts.slice(0,10).map((p,i)=>{const sc=p.stamps?Object.keys(p.stamps).length:0;
-return el("div",{key:p.id,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<9?"1px solid #f1f5f9":"none"}},
-el("div",null,el("span",{style:{fontWeight:700,fontSize:13}},p.name),el("span",{style:{fontSize:11,color:"#94a3b8",marginLeft:8}},p.phone)),
-el("div",{style:{display:"flex",alignItems:"center",gap:6}},
-el("span",{style:{fontSize:12,color:C.primaryColor,fontWeight:600}},sc+"/"+C.locations.length),
-p.completed&&el("span",{style:{background:"#ecfdf5",color:"#065f46",padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:700}},"완료 ✓")))}))),
+  // ─── QR Camera Scanner ───
+  const startScanner = async () => {
+    setScanning(true);
+    setCameraError(null);
+    setScanResult(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute("playsinline", true);
+        await videoRef.current.play();
+        scanFrame();
+      }
+    } catch (err) {
+      setCameraError(err.name === "NotAllowedError" ? "카메라 접근이 거부되었습니다.\n설정에서 카메라 권한을 허용해주세요." : "카메라를 시작할 수 없습니다.\n다른 앱에서 카메라를 사용중인지 확인해주세요.");
+    }
+  };
 
-// ── LOCATIONS ──
-admTab==="locations"&&el("div",null,el("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},el("h3",{style:{fontSize:15,fontWeight:800,margin:0}},"스탬프 장소 ("+C.locations.length+"개)"),el("button",{onClick:()=>{const nl={id:"loc"+Date.now(),name:"새 장소",icon:"📍",code:"DJSF2026-NEW"+C.locations.length,mission:"미션 입력",desc:"설명 입력",iconImage:null};updC({...C,locations:[...C.locations,nl]});setEditLoc(nl.id)},style:{background:C.primaryColor,color:"#fff",border:"none",padding:"8px 14px",borderRadius:8,fontSize:12,fontWeight:700}},"+ 추가")),C.locations.map(loc=>el("div",{key:loc.id,style:{background:"#fff",borderRadius:14,padding:16,marginBottom:10,border:editLoc===loc.id?"2px solid "+C.primaryColor:"1px solid #f1f5f9"}},editLoc===loc.id?el("div",null,el("div",{style:{marginBottom:12}},el("label",{style:{fontSize:11,fontWeight:700,color:"#64748b",display:"block",marginBottom:6}},"아이콘"),el("div",{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},loc.iconImage?el("img",{src:loc.iconImage,style:{width:40,height:40,borderRadius:10,objectFit:"cover"}}):el("span",{style:{fontSize:32}},loc.icon),el("button",{onClick:()=>setEmojiPk(emojiPk===loc.id?null:loc.id),style:{padding:"6px 10px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:11}},"이모지"),el("button",{onClick:()=>imgUp(img=>updC({...C,locations:C.locations.map(l=>l.id===loc.id?{...l,iconImage:img}:l)}),200),style:{padding:"6px 10px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:11}},"이미지"),loc.iconImage&&el("button",{onClick:()=>updC({...C,locations:C.locations.map(l=>l.id===loc.id?{...l,iconImage:null}:l)}),style:{padding:"6px 8px",borderRadius:8,border:"1px solid #fecaca",background:"#fef2f2",fontSize:11,color:"#dc2626"}},"✕")),emojiPk===loc.id&&el("div",{style:{display:"flex",flexWrap:"wrap",gap:4,marginTop:8,padding:8,background:"#f8fafc",borderRadius:10,maxHeight:120,overflowY:"auto"}},EMOJIS.map(em=>el("button",{key:em,onClick:()=>{updC({...C,locations:C.locations.map(l=>l.id===loc.id?{...l,icon:em,iconImage:null}:l)});setEmojiPk(null)},style:{width:36,height:36,border:loc.icon===em?"2px solid "+C.primaryColor:"1px solid #e2e8f0",borderRadius:8,background:"#fff",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}},em)))),[{k:"name",l:"장소명",t:"i"},{k:"code",l:"QR코드값",t:"i"},{k:"mission",l:"미션",t:"t"},{k:"desc",l:"설명",t:"t"}].map(f=>el("div",{key:f.k,style:{marginBottom:10}},el("label",{style:{fontSize:11,fontWeight:700,color:"#64748b"}},f.l),f.t==="t"?el("textarea",{value:loc[f.k],rows:2,onChange:e=>updC({...C,locations:C.locations.map(l=>l.id===loc.id?{...l,[f.k]:e.target.value}:l)}),style:{width:"100%",padding:10,borderRadius:8,border:"1px solid #e2e8f0",fontSize:13,boxSizing:"border-box",resize:"vertical"}}):el("input",{value:loc[f.k],onChange:e=>{const v=f.k==="code"?e.target.value.toUpperCase():e.target.value;updC({...C,locations:C.locations.map(l=>l.id===loc.id?{...l,[f.k]:v}:l)})},style:{width:"100%",padding:10,borderRadius:8,border:"1px solid #e2e8f0",fontSize:13,boxSizing:"border-box",fontFamily:f.k==="code"?"monospace":"inherit"}}))),el("button",{onClick:()=>{setEditLoc(null);setEmojiPk(null)},style:{background:C.primaryColor,color:"#fff",border:"none",padding:"9px 24px",borderRadius:8,fontSize:13,fontWeight:700}},"✓ 완료")):el("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},el("div",{style:{display:"flex",gap:12,alignItems:"center"}},loc.iconImage?el("img",{src:loc.iconImage,style:{width:36,height:36,borderRadius:8,objectFit:"cover"}}):el("span",{style:{fontSize:26}},loc.icon),el("div",null,el("div",{style:{fontWeight:700,fontSize:14}},loc.name),el("div",{style:{fontSize:10,color:"#94a3b8",fontFamily:"monospace"}},loc.code))),el("div",{style:{display:"flex",gap:6}},el("button",{onClick:()=>setEditLoc(loc.id),style:{background:"#f1f5f9",border:"none",padding:"6px 10px",borderRadius:6,fontSize:12}},"✏️"),el("button",{onClick:()=>{if(C.locations.length<=1)return;updC({...C,locations:C.locations.filter(l=>l.id!==loc.id)})},style:{background:"#fef2f2",border:"none",padding:"6px 10px",borderRadius:6,fontSize:12}},"🗑")))))),
+  const scanFrame = () => {
+    if (!videoRef.current || !canvasRef.current || !jsQRRef.current) {
+      scanAnimRef.current = requestAnimationFrame(scanFrame);
+      return;
+    }
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+      scanAnimRef.current = requestAnimationFrame(scanFrame);
+      return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQRRef.current(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+    if (code?.data) {
+      handleScannedCode(code.data);
+      return;
+    }
+    scanAnimRef.current = requestAnimationFrame(scanFrame);
+  };
 
-// ── DESIGN ──
-admTab==="design"&&el("div",null,el("h3",{style:{fontSize:15,fontWeight:800,marginBottom:14}},"🎨 디자인"),el("div",{style:{background:"#fff",borderRadius:14,padding:16,marginBottom:12}},el("h4",{style:{fontSize:13,fontWeight:700,marginBottom:14,color:"#334155"}},"🖼 이미지"),[{k:"heroImage",l:"시작화면 캐릭터",ms:400},{k:"stampImage",l:"완료 스탬프",ms:200},{k:"stampEmptyImage",l:"미완료 스탬프",ms:200},{k:"mapImage",l:"안내 지도",ms:1200}].map(it=>el("div",{key:it.k,style:{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid #f1f5f9"}},el("div",{style:{width:50,height:50,borderRadius:10,background:"#f8fafc",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",border:"2px dashed #e2e8f0",flexShrink:0}},C[it.k]?el("img",{src:C[it.k],style:{width:"100%",height:"100%",objectFit:"cover"}}):el("span",{style:{fontSize:10,color:"#94a3b8"}},"없음")),el("div",{style:{flex:1,fontSize:13,fontWeight:600}},it.l),el("div",{style:{display:"flex",gap:4}},el("button",{onClick:()=>imgUp(img=>updC({...C,[it.k]:img}),it.ms),style:{padding:"5px 10px",borderRadius:6,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:10}},"📷"),C[it.k]&&el("button",{onClick:()=>updC({...C,[it.k]:null}),style:{padding:"5px 10px",borderRadius:6,border:"1px solid #fecaca",background:"#fef2f2",fontSize:10,color:"#dc2626"}},"삭제"))))),
-el("div",{style:{background:"#fff",borderRadius:14,padding:16,marginBottom:12}},el("h4",{style:{fontSize:13,fontWeight:700,marginBottom:12}},"✏️ 텍스트"),[{k:"festivalName",l:"축제명"},{k:"subtitle",l:"부제목"}].map(f=>el("div",{key:f.k,style:{marginBottom:10}},el("label",{style:{fontSize:11,fontWeight:600,color:"#64748b"}},f.l),el("input",{value:C[f.k],onChange:e=>updC({...C,[f.k]:e.target.value}),style:{width:"100%",padding:10,borderRadius:8,border:"1px solid #e2e8f0",fontSize:14,boxSizing:"border-box"}}))),el("label",{style:{fontSize:11,fontWeight:600,color:"#64748b"}},"완료 메시지"),el("textarea",{value:C.completionMessage,rows:3,onChange:e=>updC({...C,completionMessage:e.target.value}),style:{width:"100%",padding:10,borderRadius:8,border:"1px solid #e2e8f0",fontSize:13,boxSizing:"border-box",resize:"vertical"}})),
-el("div",{style:{background:"#fff",borderRadius:14,padding:16,marginBottom:12}},el("h4",{style:{fontSize:13,fontWeight:700,marginBottom:12}},"🎨 색상"),el("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}},[{k:"primaryColor",l:"메인"},{k:"secondaryColor",l:"보조"},{k:"accentColor",l:"강조"},{k:"bgColor",l:"배경"},{k:"textColor",l:"글자"},{k:"cardBg",l:"카드"}].map(c=>el("div",{key:c.k},el("label",{style:{fontSize:10,fontWeight:600,color:"#64748b"}},c.l),el("div",{style:{display:"flex",alignItems:"center",gap:6}},el("input",{type:"color",value:C[c.k],onChange:e=>updC({...C,[c.k]:e.target.value}),style:{width:32,height:32,border:"2px solid #e2e8f0",borderRadius:8,padding:0}}),el("input",{value:C[c.k],onChange:e=>updC({...C,[c.k]:e.target.value}),style:{flex:1,padding:7,borderRadius:6,border:"1px solid #e2e8f0",fontSize:11,fontFamily:"monospace"}})))))),
-el("div",{style:{background:"#fff",borderRadius:14,padding:16,marginBottom:12}},el("h4",{style:{fontSize:13,fontWeight:700,marginBottom:12}},"🔤 폰트"),[{k:"titleFont",l:"제목",o:["'Black Han Sans',sans-serif","'Jua',sans-serif","'Do Hyeon',sans-serif","'Gugi',sans-serif","'Gaegu',cursive"]},{k:"fontFamily",l:"본문",o:["'Noto Sans KR',sans-serif","'Jua',sans-serif","'Gothic A1',sans-serif","'Gamja Flower',cursive","'Gaegu',cursive"]}].map(f=>el("div",{key:f.k,style:{marginBottom:10}},el("label",{style:{fontSize:10,fontWeight:600,color:"#64748b"}},f.l),el("select",{value:C[f.k],onChange:e=>updC({...C,[f.k]:e.target.value}),style:{width:"100%",padding:10,borderRadius:8,border:"1px solid #e2e8f0",fontSize:13}},f.o.map(o=>el("option",{key:o,value:o},o.split("'")[1]))),el("div",{style:{marginTop:4,padding:8,background:"#f8fafc",borderRadius:8,fontFamily:C[f.k],fontSize:f.k==="titleFont"?20:14}},"미리보기 텍스트"))))),
+  const handleScannedCode = (data) => {
+    const loc = config.locations.find(l => l.code === data);
+    if (loc) {
+      if (stamps[loc.id]) {
+        setScanResult({ success: false, msg: `이미 "${loc.name}" 스탬프를 수집했습니다!`, icon: "🔄" });
+      } else {
+        const ns = { ...stamps, [loc.id]: true };
+        saveStamps(ns);
+        setScanResult({ success: true, msg: `"${loc.name}" 스탬프 획득!`, icon: "🎉" });
+      }
+    } else {
+      setScanResult({ success: false, msg: "유효하지 않은 QR코드입니다.", icon: "❌" });
+    }
+    stopScanner();
+  };
 
-// ── API ──
-admTab==="api"&&el("div",null,el("h3",{style:{fontSize:15,fontWeight:800,marginBottom:6}},"🤖 AI 설정"),el("div",{style:{background:"#fffbeb",borderRadius:12,padding:14,marginBottom:16,border:"1px solid #fde68a"}},el("p",{style:{fontSize:13,fontWeight:700,color:"#92400e",marginBottom:8}},"AI 기능을 쓰려면 API 키가 필요합니다"),el("p",{style:{fontSize:12,color:"#a16207",lineHeight:1.6}},"console.anthropic.com에서 발급 가능")),el("div",{style:{background:"#fff",borderRadius:14,padding:16}},el("label",{style:{fontSize:12,fontWeight:700,display:"block",marginBottom:8}},"Anthropic API Key"),el("input",{type:"password",value:C.apiKey||"",placeholder:"sk-ant-api03-...",onChange:e=>updC({...C,apiKey:e.target.value}),style:{width:"100%",padding:12,borderRadius:10,border:"2px solid #e2e8f0",fontSize:13,boxSizing:"border-box",fontFamily:"monospace"}}),C.apiKey&&el("div",{style:{marginTop:12,padding:10,background:"#ecfdf5",borderRadius:8,fontSize:12,color:"#065f46"}},"✅ 키 설정 완료"))),
+  const stopScanner = () => {
+    if (scanAnimRef.current) cancelAnimationFrame(scanAnimRef.current);
+    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    setScanning(false);
+  };
 
-// ── QR ──
-admTab==="qrcodes"&&el("div",null,el("h3",{style:{fontSize:15,fontWeight:800,marginBottom:6}},"📱 QR 코드"),el("p",{style:{fontSize:12,color:"#64748b",marginBottom:16}},"각 장소에 인쇄하여 비치하세요."),el("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}},C.locations.map(loc=>el("div",{key:loc.id,style:{background:"#fff",borderRadius:14,padding:14,textAlign:"center"}},el("div",{style:{fontSize:22,marginBottom:4}},loc.icon),el("div",{style:{fontSize:12,fontWeight:700,marginBottom:6}},loc.name),el("img",{src:getQR(loc.code,300),style:{width:"100%",maxWidth:160,borderRadius:8}}),el("div",{style:{marginTop:6,fontSize:9,color:"#94a3b8",fontFamily:"monospace",background:"#f8fafc",padding:"3px 6px",borderRadius:4}},loc.code))))),
+  // ─── Image Upload Helper ───
+  const handleImageUpload = (callback, maxSize = 800) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let w = img.width, h = img.height;
+          if (w > maxSize || h > maxSize) {
+            if (w > h) { h = (h / w) * maxSize; w = maxSize; }
+            else { w = (w / h) * maxSize; h = maxSize; }
+          }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          callback(canvas.toDataURL("image/png", 0.85));
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
 
-// ── FESTIVAL ──
-admTab==="festival"&&el("div",null,el("h3",{style:{fontSize:15,fontWeight:800,marginBottom:6}},"📋 축제 정보 (AI용)"),el("textarea",{value:C.festivalInfo,rows:18,onChange:e=>updC({...C,festivalInfo:e.target.value}),style:{width:"100%",padding:14,borderRadius:12,border:"2px solid #e2e8f0",fontSize:14,lineHeight:1.8,boxSizing:"border-box",resize:"vertical"}}),el("div",{style:{marginTop:10,padding:12,background:"#ecfdf5",borderRadius:10,fontSize:11,color:"#065f46"}},"💡 상세할수록 AI 답변 품질이 높아집니다.")),
+  // ─── AI Chat (with API key support) ───
+  const sendChat = async () => {
+    if (!chatInput.trim() || chatLoading) return;
+    const userMsg = chatInput.trim();
+    setChatInput("");
+    setChatMessages(prev => [...prev, { role: "user", text: userMsg }]);
+    setChatLoading(true);
+    try {
+      const headers = { "Content-Type": "application/json" };
+      // If external API key is set, use it
+      if (config.apiKey && config.apiKey.trim()) {
+        headers["x-api-key"] = config.apiKey.trim();
+        headers["anthropic-version"] = "2023-06-01";
+        headers["anthropic-dangerous-direct-browser-access"] = "true";
+      }
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: `당신은 "${config.festivalName}"의 AI 안내 매니저입니다. 한국어로 친절하고 간결하게(3-4문장) 답변하세요.\n\n[축제 정보]\n${config.festivalInfo}\n\n[스탬프 투어 장소]\n${config.locations.map((l, i) => `${i + 1}. ${l.name}: ${l.desc} - 미션: ${l.mission}`).join("\n")}\n\n총 ${config.locations.length}개 장소 방문 → QR 스캔 → 스탬프 수집 → 종합안내소에서 선물 수령`,
+          messages: [
+            ...chatMessages.slice(-10).map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.text })),
+            { role: "user", content: userMsg },
+          ],
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        if (res.status === 401 || res.status === 403) {
+          throw new Error("API_KEY");
+        }
+        throw new Error(errData?.error?.message || "API 오류");
+      }
+      const data = await res.json();
+      setChatMessages(prev => [...prev, { role: "assistant", text: data.content?.map(c => c.text || "").join("") || "잠시 후 다시 시도해주세요." }]);
+    } catch (err) {
+      let errMsg = "네트워크 오류가 발생했습니다. 다시 시도해주세요.";
+      if (err.message === "API_KEY") {
+        errMsg = "⚠️ AI 기능을 사용하려면 관리자 설정에서 Anthropic API 키를 입력해야 합니다.\n\n관리자 → 축제정보 탭에서 API 키를 설정해주세요.";
+      } else if (err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError")) {
+        errMsg = "⚠️ AI 서버에 연결할 수 없습니다.\n\n외부 웹호스팅에서 사용 중이라면, 관리자 → 축제정보 탭에서 Anthropic API 키를 입력해주세요.\n\n(API 키 발급: console.anthropic.com)";
+      }
+      setChatMessages(prev => [...prev, { role: "assistant", text: errMsg }]);
+    }
+    setChatLoading(false);
+  };
 
-// ── PARTICIPANTS (Firebase) ──
-admTab==="users"&&el("div",null,
-el("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},
-el("h3",{style:{fontSize:15,fontWeight:800,margin:0}},"👥 참가자 ("+(fbOk?fbParts.length:LS("parts")?.length||0)+"명)"),
-el("div",{style:{display:"flex",gap:6}},
-el("div",{style:{padding:"4px 10px",borderRadius:8,background:fbOk?"#ecfdf5":"#fef2f2",fontSize:11,fontWeight:600,color:fbOk?"#065f46":"#991b1b"}},fbOk?"🟢 실시간":"🟡 로컬모드"))),
-(function(){const pList=fbOk?fbParts:(LS("parts")||[]).slice().reverse();
-return pList.length===0?el("div",{style:{textAlign:"center",padding:40,color:"#94a3b8"}},"아직 참가자가 없습니다"):
-el("div",null,pList.map((p,i)=>{const sc=p.stamps?Object.keys(p.stamps).length:0;
-return el("div",{key:p.id||i,style:{background:"#fff",borderRadius:12,padding:"12px 14px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}},
-el("div",null,el("div",{style:{fontWeight:700,fontSize:14}},el("span",{style:{color:"#94a3b8",fontSize:12,marginRight:6}},pList.length-i),p.name),
-el("div",{style:{fontSize:11,color:"#64748b",marginTop:2}},(p.birth||"")+" · "+(p.phone||""))),
-el("div",{style:{textAlign:"right"}},
-fbOk&&el("div",{style:{fontSize:13,fontWeight:700,color:C.primaryColor}},sc+"/"+C.locations.length),
-p.completed?el("div",{style:{fontSize:10,color:"#065f46",fontWeight:700,background:"#ecfdf5",padding:"2px 8px",borderRadius:8,marginTop:4}},"✅ 완료"):fbOk?el("div",{style:{fontSize:10,color:"#94a3b8",marginTop:4}},"진행중"):null))}))})()))}
+  // ─── QR Code Image URL ───
+  const getQRUrl = (data, size = 200) => `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}&format=png&margin=8`;
 
-// ════════ MAIN TOUR ════════
-return el("div",{style:{fontFamily:C.fontFamily,background:C.bgColor,minHeight:"100dvh",paddingBottom:90}},
-Toast,AdminBtn,showAdm&&!admAuth&&el(PwModal),
-showComp&&el("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",zIndex:1100,display:"flex",alignItems:"center",justifyContent:"center",padding:20},onClick:()=>setShowComp(false)},el("div",{onClick:e=>e.stopPropagation(),style:{background:"#fff",borderRadius:24,padding:"36px 28px",width:"100%",maxWidth:340,textAlign:"center",animation:"bounceIn .5s"}},el("div",{style:{fontSize:56,marginBottom:8}},"🏆"),el("h2",{style:{fontFamily:C.titleFont,fontSize:22,color:C.primaryColor,margin:"0 0 10px"}},"미션 완료!"),el("p",{style:{fontSize:14,color:"#475569",lineHeight:1.8,whiteSpace:"pre-line"}},C.completionMessage),el("div",{style:{marginTop:16,padding:14,background:C.primaryColor+"0a",borderRadius:12,fontSize:13,color:C.primaryColor,fontWeight:600}},"📋 "+user?.name+" | 📱 "+user?.phone),el("button",{onClick:()=>setShowComp(false),style:{marginTop:18,padding:"12px 40px",borderRadius:12,border:"none",background:C.accentColor,color:"#fff",fontSize:15,fontWeight:800}},"확인"))),
-(scanning||scanRes)&&el("div",{style:{position:"fixed",inset:0,background:"#000",zIndex:1100,display:"flex",flexDirection:"column"}},el("div",{style:{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(0,0,0,.8)",zIndex:10}},el("span",{style:{color:"#fff",fontSize:15,fontWeight:700}},"📷 QR 스캔"),el("button",{onClick:()=>{stopScan();setScanRes(null)},style:{background:"rgba(255,255,255,.15)",border:"none",color:"#fff",padding:"8px 16px",borderRadius:8,fontSize:13}},"✕ 닫기")),scanRes?el("div",{style:{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:30}},el("div",{style:{background:"#fff",borderRadius:24,padding:"40px 28px",width:"100%",maxWidth:340,textAlign:"center",animation:"bounceIn .4s"}},el("div",{style:{fontSize:56,marginBottom:8}},scanRes.ic),el("h3",{style:{fontSize:18,fontWeight:800,color:scanRes.ok?C.primaryColor:"#dc2626",margin:"0 0 8px"}},scanRes.ok?"스탬프 획득!":"알림"),el("p",{style:{fontSize:15,color:"#475569",lineHeight:1.6,whiteSpace:"pre-line"}},scanRes.msg),el("div",{style:{display:"flex",gap:10,marginTop:20}},el("button",{onClick:()=>{setScanRes(null);startScan()},style:{flex:1,padding:12,borderRadius:10,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:14}},"계속 스캔"),el("button",{onClick:()=>setScanRes(null),style:{flex:1,padding:12,borderRadius:10,border:"none",background:C.primaryColor,color:"#fff",fontSize:14,fontWeight:700}},"돌아가기")))):el("div",{style:{flex:1,position:"relative",display:"flex",alignItems:"center",justifyContent:"center"}},el("video",{ref:vidRef,style:{width:"100%",height:"100%",objectFit:"cover"},playsInline:true,muted:true}),el("canvas",{ref:canRef,style:{display:"none"}}),el("div",{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}},el("div",{style:{width:240,height:240,position:"relative"}},[[0,0,"Top","Left"],[0,1,"Top","Right"],[1,0,"Bottom","Left"],[1,1,"Bottom","Right"]].map(([r,c,v,hr])=>{const s={position:"absolute",width:36,height:36,borderStyle:"solid",borderColor:C.secondaryColor,borderWidth:0};s[v.toLowerCase()]=-2;s[hr.toLowerCase()]=-2;s["border"+v+"Width"]=4;s["border"+hr+"Width"]=4;s["border"+v+hr+"Radius"]=12;return el("div",{key:r+""+c,style:s})}),el("div",{style:{position:"absolute",left:10,right:10,height:3,background:"linear-gradient(90deg,transparent,"+C.secondaryColor+",transparent)",borderRadius:2,animation:"scanLine 2s ease-in-out infinite"}}))),camErr&&el("div",{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.9)",padding:30}},el("div",{style:{textAlign:"center",color:"#fff"}},el("div",{style:{fontSize:48,marginBottom:12}},"📷"),el("p",{style:{fontSize:14,whiteSpace:"pre-line",lineHeight:1.8}},camErr),el("button",{onClick:startScan,style:{marginTop:20,padding:"12px 30px",borderRadius:10,border:"none",background:C.primaryColor,color:"#fff",fontSize:14,fontWeight:700}},"다시 시도"))),el("div",{style:{position:"absolute",bottom:30,left:0,right:0,textAlign:"center"}},el("p",{style:{color:"rgba(255,255,255,.8)",fontSize:13}},"QR코드를 사각형 안에 맞춰주세요")))),
-showMap&&el("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",zIndex:1050,display:"flex",alignItems:"center",justifyContent:"center",padding:16},onClick:()=>setShowMap(false)},el("div",{onClick:e=>e.stopPropagation(),style:{background:"#fff",borderRadius:20,width:"100%",maxWidth:420,maxHeight:"90vh",overflow:"hidden",display:"flex",flexDirection:"column",animation:"slideUp .3s"}},el("div",{style:{padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid #f1f5f9",flexShrink:0}},el("span",{style:{fontWeight:800,fontSize:15}},"🗺 안내 지도"),el("button",{onClick:()=>setShowMap(false),style:{width:32,height:32,borderRadius:"50%",border:"none",background:"#f1f5f9",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}},"✕")),el("div",{style:{flex:1,overflow:"auto",padding:12}},C.mapImage?el("img",{src:C.mapImage,style:{width:"100%",borderRadius:12}}):el("div",{style:{padding:"60px 20px",textAlign:"center",color:"#94a3b8"}},el("div",{style:{fontSize:48}},"🗺"),el("p",{style:{fontSize:14,marginTop:8}},"지도가 등록되지 않았습니다")),el("div",{style:{marginTop:12}},C.locations.map((loc,i)=>el("div",{key:loc.id,style:{display:"flex",gap:10,alignItems:"center",padding:"10px 6px",borderBottom:"1px solid #f8fafc"}},el("div",{style:{width:28,height:28,borderRadius:"50%",background:stamps[loc.id]?C.accentColor:"#e2e8f0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:stamps[loc.id]?"#fff":"#64748b",fontWeight:700,flexShrink:0}},stamps[loc.id]?"✓":i+1),el("div",null,el("div",{style:{fontSize:13,fontWeight:600}},loc.icon+" "+loc.name)))))))),
-scr==="chat"&&el("div",{style:{position:"fixed",inset:0,background:C.bgColor,zIndex:900,display:"flex",flexDirection:"column"}},el("div",{style:{background:"linear-gradient(135deg,"+C.primaryColor+","+C.secondaryColor+")",color:"#fff",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}},el("div",{style:{display:"flex",alignItems:"center",gap:10}},el("div",{style:{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}},"🤖"),el("div",null,el("div",{style:{fontWeight:700,fontSize:14}},"AI 안내 매니저"))),el("button",{onClick:()=>setScr("tour"),style:{background:"rgba(255,255,255,.15)",border:"none",color:"#fff",padding:"7px 14px",borderRadius:8,fontSize:12}},"✕")),el("div",{style:{flex:1,overflow:"auto",padding:14,display:"flex",flexDirection:"column",gap:10}},msgs.length===0&&el("div",{style:{textAlign:"center",padding:"32px 16px",color:"#94a3b8"}},el("div",{style:{fontSize:44,marginBottom:8}},"🤖"),el("p",{style:{fontSize:14,fontWeight:600,color:"#475569"}},"무엇이든 물어보세요!"),!C.apiKey&&el("div",{style:{padding:12,background:"#fef3c7",borderRadius:10,fontSize:12,color:"#92400e",marginTop:12,marginBottom:12}},"⚠️ AI가 설정되지 않았습니다"),["축제 일정이 어떻게 되나요?","스탬프 투어 참여 방법","주차장이 어디에 있나요?"].map(q=>el("button",{key:q,onClick:()=>setChatIn(q),style:{display:"block",width:"100%",padding:"10px 14px",marginBottom:8,borderRadius:12,border:"1px solid "+C.primaryColor+"22",background:C.primaryColor+"06",color:C.primaryColor,fontSize:13,textAlign:"left"}},"💬 "+q))),msgs.map((m,i)=>el("div",{key:i,style:{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",gap:8}},m.role!=="user"&&el("div",{style:{width:30,height:30,borderRadius:"50%",background:"linear-gradient(135deg,"+C.primaryColor+","+C.secondaryColor+")",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}},"🤖"),el("div",{style:{maxWidth:"78%",padding:"10px 14px",borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px",background:m.role==="user"?C.primaryColor:"#fff",color:m.role==="user"?"#fff":C.textColor,fontSize:14,lineHeight:1.7,whiteSpace:"pre-wrap"}},m.text))),chatLoad&&el("div",{style:{display:"flex",gap:8}},el("div",{style:{width:30,height:30,borderRadius:"50%",background:"linear-gradient(135deg,"+C.primaryColor+","+C.secondaryColor+")",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}},"🤖"),el("div",{style:{padding:"10px 16px",background:"#fff",borderRadius:14,fontSize:18,animation:"blink 1.4s infinite"}},"•••")),el("div",{ref:chatEnd})),el("div",{style:{padding:"10px 14px",borderTop:"1px solid #e2e8f0",background:"#fff",display:"flex",gap:8,flexShrink:0,paddingBottom:"max(10px,env(safe-area-inset-bottom))"}},el("input",{value:chatIn,onChange:e=>setChatIn(e.target.value),onKeyDown:e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendChat()}},placeholder:"질문을 입력하세요...",style:{flex:1,padding:"12px 16px",borderRadius:24,border:"2px solid #e2e8f0",fontSize:14}}),el("button",{onClick:sendChat,disabled:!chatIn.trim()||chatLoad,style:{width:44,height:44,borderRadius:"50%",border:"none",background:chatIn.trim()?C.primaryColor:"#e2e8f0",color:"#fff",fontSize:18}},"↑"))),
-el("div",{style:{background:"linear-gradient(160deg,"+C.primaryColor+","+C.secondaryColor+")",padding:"22px 20px 52px",textAlign:"center",position:"relative"}},C.heroImage&&el("img",{src:C.heroImage,style:{width:50,height:50,objectFit:"contain",position:"absolute",top:12,left:16}}),el("h1",{style:{fontFamily:C.titleFont,fontSize:22,color:"#fff",margin:0}},C.festivalName),el("p",{style:{color:"rgba(255,255,255,.8)",fontSize:12,marginTop:3,letterSpacing:2}},C.subtitle),el("p",{style:{color:"rgba(255,255,255,.9)",fontSize:13,marginTop:8}},"👋 ",el("b",null,user?.name),"님, 환영합니다!")),
-el("div",{style:{margin:"-32px 16px 14px",background:C.cardBg,borderRadius:18,padding:"18px 18px 14px",boxShadow:"0 6px 24px rgba(0,0,0,.08)",position:"relative",zIndex:10}},el("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}},el("span",{style:{fontSize:14,fontWeight:700,color:C.textColor}},"🗂 스탬프 수집"),el("span",{style:{fontSize:22,fontWeight:900,color:C.primaryColor,fontFamily:C.titleFont}},cnt+"/"+C.locations.length)),el("div",{style:{display:"flex",justifyContent:"center",gap:8,flexWrap:"wrap"}},C.locations.map(l=>el(SI,{key:l.id,loc:l,stamped:!!stamps[l.id],size:42}))),el("div",{style:{marginTop:12,height:7,background:"#e8edf2",borderRadius:4,overflow:"hidden"}},el("div",{style:{height:"100%",width:(cnt/Math.max(C.locations.length,1)*100)+"%",background:"linear-gradient(90deg,"+C.primaryColor+","+C.accentColor+")",borderRadius:4,transition:"width .6s"}})),allDone&&el("button",{onClick:()=>setShowComp(true),style:{width:"100%",marginTop:12,padding:13,borderRadius:12,border:"none",background:"linear-gradient(135deg,"+C.accentColor+",#f59e0b)",color:"#fff",fontSize:15,fontWeight:800,animation:"pulse 2s infinite",fontFamily:C.titleFont}},"🏆 선물 수령하기")),
-el("div",{style:{padding:"0 16px",display:"flex",gap:10,marginBottom:14}},el("button",{onClick:()=>{setScanRes(null);startScan()},style:{flex:2,padding:14,borderRadius:14,border:"none",background:"linear-gradient(135deg,"+C.primaryColor+","+C.secondaryColor+")",color:"#fff",fontSize:15,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 4px 16px "+C.primaryColor+"33"}},el("span",{style:{fontSize:20}},"📷")," QR 스캔"),el("button",{onClick:()=>setShowMap(true),style:{flex:1,padding:14,borderRadius:14,border:"2px solid "+C.primaryColor+"22",background:C.cardBg,color:C.primaryColor,fontSize:14,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",gap:6}},"🗺 지도")),
-el("div",{style:{padding:"0 16px"}},el("h3",{style:{fontSize:14,fontWeight:800,color:C.textColor,marginBottom:10}},"📍 스탬프 장소"),C.locations.map(l=>el("div",{key:l.id,style:{background:C.cardBg,borderRadius:14,padding:14,marginBottom:8,display:"flex",gap:12,alignItems:"center",border:stamps[l.id]?"2px solid "+C.accentColor+"30":"1px solid #f1f5f9"}},el(SI,{loc:l,stamped:!!stamps[l.id],size:44}),el("div",{style:{flex:1}},el("div",{style:{fontSize:14,fontWeight:700,color:C.textColor}},l.name),el("div",{style:{fontSize:11,color:"#94a3b8",marginTop:2}},l.desc),el("div",{style:{fontSize:11,color:C.primaryColor,marginTop:3,fontWeight:500}},"📌 "+l.mission)),stamps[l.id]&&el("div",{style:{background:C.accentColor+"15",color:C.accentColor,padding:"4px 10px",borderRadius:20,fontSize:10,fontWeight:800}},"완료 ✓")))),
-el("div",{style:{padding:16,textAlign:"center"}},el("button",{onClick:doLogout,style:{padding:"8px 20px",borderRadius:8,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:12,color:"#94a3b8"}},"🚪 투어 종료")),
-el("div",{style:{position:"fixed",bottom:0,left:0,right:0,background:"#fff",borderTop:"1px solid #e8edf2",display:"flex",justifyContent:"space-around",alignItems:"flex-end",padding:"6px 0",paddingBottom:"max(6px,env(safe-area-inset-bottom))",zIndex:100}},el("button",{onClick:()=>setScr("tour"),style:{border:"none",background:"transparent",display:"flex",flexDirection:"column",alignItems:"center",gap:2,color:scr==="tour"?C.primaryColor:"#94a3b8",fontSize:10,fontWeight:600,padding:"4px 18px"}},el("span",{style:{fontSize:20}},"🗺"),"투어"),el("button",{onClick:()=>{setScanRes(null);startScan()},style:{border:"none",background:"linear-gradient(135deg,"+C.primaryColor+","+C.secondaryColor+")",width:54,height:54,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",marginTop:-22,boxShadow:"0 4px 20px "+C.primaryColor+"44"}},el("span",{style:{fontSize:24}},"📷")),el("button",{onClick:()=>setScr("chat"),style:{border:"none",background:"transparent",display:"flex",flexDirection:"column",alignItems:"center",gap:2,color:"#94a3b8",fontSize:10,fontWeight:600,padding:"4px 18px"}},el("span",{style:{fontSize:20}},"🤖"),"AI안내")))}
+  const css = { fontFamily: config.fontFamily, "--p": config.primaryColor, "--s": config.secondaryColor, "--a": config.accentColor };
 
-ReactDOM.render(el(App),document.getElementById("root"));
+  // ─── Toast Component ───
+  const ToastNotification = () => {
+    if (!toast) return null;
+    return (
+      <div style={{
+        position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)",
+        background: toast.type === "success" ? "#059669" : toast.type === "error" ? "#dc2626" : "#1e293b",
+        color: "#fff", padding: "12px 24px", borderRadius: 14, fontSize: 14, fontWeight: 700,
+        zIndex: 9999, boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+        animation: "toastIn 0.3s ease-out", whiteSpace: "nowrap",
+        backdropFilter: "blur(10px)", letterSpacing: 0.5
+      }}>
+        {toast.msg}
+      </div>
+    );
+  };
+
+  // ─── Admin Button (visible on hover/touch, hidden during chat/scanner) ───
+  const AdminButton = () => {
+    if (screen === "chat" || scanning || scanResult) return null;
+    return (
+      <div
+        onMouseEnter={() => setAdminHover(true)}
+        onMouseLeave={() => setAdminHover(false)}
+        onClick={() => setShowAdmin(true)}
+        style={{
+          position: "fixed", top: 10, right: 10, zIndex: 999,
+          width: adminHover ? "auto" : 40, height: 40,
+          borderRadius: 20, cursor: "pointer",
+          background: adminHover ? "rgba(0,0,0,0.65)" : "rgba(0,0,0,0.15)",
+          backdropFilter: "blur(8px)",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          padding: adminHover ? "0 14px 0 12px" : "0",
+          transition: "all 0.3s ease",
+          boxShadow: adminHover ? "0 4px 16px rgba(0,0,0,0.2)" : "none",
+        }}
+      >
+        <span style={{ fontSize: 18, filter: adminHover ? "none" : "opacity(0.4)", transition: "all 0.3s" }}>⚙️</span>
+        {adminHover && <span style={{ color: "#fff", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>관리자</span>}
+      </div>
+    );
+  };
+
+  // ─── Admin Password Modal ───
+  const AdminPwModal = () => (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, backdropFilter: "blur(4px)" }}>
+      <div style={{ background: "#fff", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 320, textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+        <div style={{ fontSize: 32, marginBottom: 8 }}>🔐</div>
+        <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 18, color: "#333" }}>관리자 인증</p>
+        <input type="password" inputMode="numeric" value={adminPw} onChange={e => { setAdminPw(e.target.value); setAdminPwError(false); }} placeholder="비밀번호 4자리" maxLength={10} style={{ width: "100%", padding: 14, borderRadius: 12, border: `2px solid ${adminPwError ? "#ef4444" : "#e2e8f0"}`, fontSize: 18, textAlign: "center", boxSizing: "border-box", outline: "none", letterSpacing: 8 }} onKeyDown={e => { if (e.key === "Enter") { if (adminPw === ADMIN_PASSWORD) { setAdminAuth(true); setAdminPw(""); setScreen("admin"); setShowAdmin(false); } else setAdminPwError(true); } }} autoFocus />
+        {adminPwError && <p style={{ color: "#ef4444", fontSize: 12, marginTop: 8 }}>비밀번호가 틀렸습니다</p>}
+        <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+          <button onClick={() => { setShowAdmin(false); setAdminPw(""); setAdminPwError(false); }} style={{ flex: 1, padding: 12, borderRadius: 10, border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", fontSize: 14 }}>취소</button>
+          <button onClick={() => { if (adminPw === ADMIN_PASSWORD) { setAdminAuth(true); setAdminPw(""); setScreen("admin"); setShowAdmin(false); } else setAdminPwError(true); }} style={{ flex: 1, padding: 12, borderRadius: 10, border: "none", background: config.primaryColor, color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>확인</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ─── Stamp Visual ───
+  const StampIcon = ({ loc, size = 48, stamped = false }) => {
+    if (stamped && config.stampImage) return <img src={config.stampImage} alt="" style={{ width: size, height: size, borderRadius: size * 0.25, objectFit: "cover" }} />;
+    if (!stamped && config.stampEmptyImage) return <img src={config.stampEmptyImage} alt="" style={{ width: size, height: size, borderRadius: size * 0.25, objectFit: "cover", opacity: 0.5 }} />;
+    if (loc?.iconImage) return <div style={{ width: size, height: size, borderRadius: size * 0.25, overflow: "hidden", border: stamped ? `3px solid ${config.accentColor}` : "3px solid #e2e8f0" }}><img src={loc.iconImage} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></div>;
+    return (
+      <div style={{ width: size, height: size, borderRadius: "50%", background: stamped ? `linear-gradient(135deg, ${config.accentColor}, ${config.secondaryColor})` : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.45, color: stamped ? "#fff" : "#b0b8c4", fontWeight: 800, transition: "all 0.4s cubic-bezier(0.34,1.56,0.64,1)", boxShadow: stamped ? `0 4px 16px ${config.accentColor}55` : "inset 0 2px 4px rgba(0,0,0,0.06)", transform: stamped ? "scale(1)" : "scale(0.92)" }}>
+        {stamped ? "✓" : (loc?.icon || "?")}
+      </div>
+    );
+  };
+
+  // ─── AI Avatar (customizable) ───
+  const AiAvatar = ({ size = 30 }) => {
+    if (config.aiCharImage) {
+      return <img src={config.aiCharImage} alt="AI" style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0, border: "2px solid rgba(255,255,255,0.2)" }} />;
+    }
+    return (
+      <div style={{ width: size, height: size, borderRadius: "50%", background: `linear-gradient(135deg, ${config.primaryColor}, ${config.secondaryColor})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.47, flexShrink: 0 }}>🤖</div>
+    );
+  };
+
+  // ─── Large AI Avatar (for chat empty state) ───
+  const AiAvatarLarge = () => {
+    if (config.aiCharImage) {
+      return <img src={config.aiCharImage} alt="AI" style={{ width: 72, height: 72, borderRadius: "50%", objectFit: "cover", marginBottom: 8, border: `3px solid ${config.primaryColor}22` }} />;
+    }
+    return <div style={{ fontSize: 44, marginBottom: 8 }}>🤖</div>;
+  };
+
+  // ─── Loading screen ───
+  if (screen === "loading") return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: `linear-gradient(160deg, ${config.primaryColor}, ${config.secondaryColor})` }}>
+      <div style={{ textAlign: "center", color: "#fff" }}>
+        <div style={{ fontSize: 48, marginBottom: 12, animation: "heroFloat 2s ease-in-out infinite" }}>🔬</div>
+        <p style={{ fontSize: 14, opacity: 0.8 }}>불러오는 중...</p>
+      </div>
+      <style>{`@keyframes heroFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }`}</style>
+    </div>
+  );
+
+  /* ════════════════════════════════════════════
+     ██ REGISTER SCREEN
+     ════════════════════════════════════════════ */
+  if (screen === "register") return (
+    <div style={{ ...css, minHeight: "100vh", background: `linear-gradient(160deg, ${config.primaryColor} 0%, ${config.secondaryColor} 100%)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20, position: "relative" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@300;400;500;700;900&family=Jua&family=Do+Hyeon&family=Gugi&family=Gaegu&family=Gamja+Flower&family=Gothic+A1:wght@400;700&display=swap" rel="stylesheet" />
+      <ToastNotification />
+      <AdminButton />
+      {showAdmin && !adminAuth && <AdminPwModal />}
+
+      {/* Animated particles */}
+      <div style={{ position: "fixed", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
+        {[...Array(6)].map((_, i) => <div key={i} style={{ position: "absolute", width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.15)", left: `${15 + i * 15}%`, top: "-10%", animation: `floatDown ${8 + i * 2}s linear infinite`, animationDelay: `${i * 1.5}s` }} />)}
+      </div>
+
+      {/* Hero */}
+      {config.heroImage ? (
+        <img src={config.heroImage} alt="" style={{ width: 140, height: 140, objectFit: "contain", marginBottom: 10, filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.3))", animation: "heroFloat 3s ease-in-out infinite" }} />
+      ) : (
+        <div style={{ width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 56, marginBottom: 10, backdropFilter: "blur(10px)", border: "2px solid rgba(255,255,255,0.2)", animation: "heroFloat 3s ease-in-out infinite" }}>🔬</div>
+      )}
+
+      <h1 style={{ fontFamily: config.titleFont, fontSize: 28, color: "#fff", margin: "0 0 4px", textShadow: "0 3px 12px rgba(0,0,0,0.3)", textAlign: "center" }}>{config.festivalName}</h1>
+      <p style={{ color: "rgba(255,255,255,0.85)", fontSize: 14, letterSpacing: 3, marginBottom: 24, fontWeight: 500 }}>{config.subtitle}</p>
+
+      {/* ─── Return User Prompt ─── */}
+      {showReturnPrompt && returnUser && (
+        <div style={{ background: "rgba(255,255,255,0.97)", borderRadius: 24, padding: "28px 22px", width: "100%", maxWidth: 380, boxShadow: "0 24px 64px rgba(0,0,0,0.2)", backdropFilter: "blur(20px)", animation: "bounceIn 0.4s" }}>
+          <div style={{ textAlign: "center", marginBottom: 16 }}>
+            <div style={{ fontSize: 44, marginBottom: 8 }}>{isCompleted ? "🏆" : "👋"}</div>
+            <h2 style={{ fontSize: 18, fontWeight: 800, color: config.textColor, margin: "0 0 6px" }}>{isCompleted ? "이미 완료하셨습니다!" : "다시 오셨군요!"}</h2>
+            <p style={{ fontSize: 14, color: "#64748b" }}><strong style={{ color: config.primaryColor }}>{returnUser.name}</strong>님{isCompleted ? "은 스탬프 투어를 완료했습니다" : "의 진행 기록이 있습니다"}</p>
+          </div>
+
+          <div style={{ background: `${config.primaryColor}08`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#475569" }}>수집한 스탬프</span>
+              <span style={{ fontSize: 18, fontWeight: 900, color: isCompleted ? config.accentColor : config.primaryColor }}>{Object.keys(stamps).filter(k => stamps[k]).length} / {config.locations.length}</span>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+              {config.locations.map(loc => (
+                <div key={loc.id} style={{ width: 32, height: 32, borderRadius: "50%", background: stamps[loc.id] ? config.accentColor : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: stamps[loc.id] ? 11 : 14, color: stamps[loc.id] ? "#fff" : "#b0b8c4" }}>
+                  {stamps[loc.id] ? "✓" : loc.icon}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {isCompleted ? (
+            <div>
+              <div style={{ padding: 14, background: "#ecfdf5", borderRadius: 12, marginBottom: 14, textAlign: "center" }}>
+                <p style={{ fontSize: 13, color: "#065f46", fontWeight: 600, lineHeight: 1.6 }}>✅ 스탬프 투어는 1인 1회만 참여 가능합니다.<br />종합안내소에서 선물을 수령해주세요!</p>
+              </div>
+              <button onClick={handleReturnContinue} style={{ width: "100%", padding: 15, borderRadius: 14, border: "none", background: `linear-gradient(135deg, ${config.accentColor}, #f59e0b)`, color: "#fff", fontSize: 17, fontWeight: 800, cursor: "pointer", fontFamily: config.titleFont, letterSpacing: 1 }}>
+                🏆 완료 화면 보기
+              </button>
+            </div>
+          ) : (
+            <div>
+              <button onClick={handleReturnContinue} style={{ width: "100%", padding: 15, borderRadius: 14, border: "none", background: `linear-gradient(135deg, ${config.primaryColor}, ${config.secondaryColor})`, color: "#fff", fontSize: 17, fontWeight: 800, cursor: "pointer", fontFamily: config.titleFont, letterSpacing: 1, boxShadow: `0 6px 24px ${config.primaryColor}44` }}>
+                🚀 이어서 투어하기
+              </button>
+              <p style={{ textAlign: "center", fontSize: 11, color: "#94a3b8", marginTop: 12 }}>⚠️ 스탬프 투어는 1인 1회만 참여 가능합니다</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── New Registration Form ─── */}
+      {!showReturnPrompt && (
+        <div style={{ background: "rgba(255,255,255,0.97)", borderRadius: 24, padding: "28px 22px", width: "100%", maxWidth: 380, boxShadow: "0 24px 64px rgba(0,0,0,0.2)", backdropFilter: "blur(20px)" }}>
+          <h2 style={{ fontSize: 17, fontWeight: 800, color: config.textColor, marginBottom: 20, textAlign: "center" }}>🎫 참여 등록</h2>
+
+          {[
+            { key: "name", label: "이름", ph: "홍길동", type: "text" },
+            { key: "birth", label: "주민번호 앞자리 (6자리)", ph: "990101", type: "numeric", max: 6 },
+            { key: "phone", label: "휴대폰 번호", ph: "010-1234-5678", type: "tel" },
+          ].map(f => (
+            <div key={f.key} style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b", display: "block", marginBottom: 5 }}>{f.label}</label>
+              <input value={regForm[f.key]} inputMode={f.type === "numeric" ? "numeric" : f.type === "tel" ? "tel" : "text"} maxLength={f.max || 20} onChange={e => {
+                let v = e.target.value;
+                if (f.key === "birth") v = v.replace(/\D/g, "").slice(0, 6);
+                if (f.key === "phone") { v = v.replace(/\D/g, "").slice(0, 11); if (v.length > 7) v = v.slice(0, 3) + "-" + v.slice(3, 7) + "-" + v.slice(7); else if (v.length > 3) v = v.slice(0, 3) + "-" + v.slice(3); }
+                setRegForm(p => ({ ...p, [f.key]: v }));
+              }} placeholder={f.ph} style={{ width: "100%", padding: "13px 14px", borderRadius: 12, border: "2px solid #e8edf2", fontSize: 15, boxSizing: "border-box", outline: "none", transition: "border 0.2s, box-shadow 0.2s" }} onFocus={e => { e.target.style.borderColor = config.primaryColor; e.target.style.boxShadow = `0 0 0 3px ${config.primaryColor}18`; }} onBlur={e => { e.target.style.borderColor = "#e8edf2"; e.target.style.boxShadow = "none"; }} />
+            </div>
+          ))}
+
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: 14, background: "#f8fafc", borderRadius: 12, marginBottom: 20, cursor: "pointer", border: regForm.agree ? `2px solid ${config.primaryColor}30` : "2px solid transparent" }}>
+            <input type="checkbox" checked={regForm.agree} onChange={e => setRegForm(p => ({ ...p, agree: e.target.checked }))} style={{ marginTop: 2, width: 20, height: 20, accentColor: config.primaryColor, flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: "#64748b", lineHeight: 1.6 }}><strong style={{ color: config.primaryColor }}>[필수]</strong> 개인정보 수집·이용에 동의합니다.<br />수집항목: 이름, 주민번호 앞자리, 휴대폰번호<br />목적: 스탬프 투어 참여 및 경품 지급<br />보유기간: 행사 종료 후 1개월 이내 파기</span>
+          </label>
+
+          <button onClick={handleRegister} disabled={!regForm.name || regForm.birth.length < 6 || regForm.phone.length < 12 || !regForm.agree} style={{ width: "100%", padding: 15, borderRadius: 14, border: "none", background: (regForm.name && regForm.birth.length >= 6 && regForm.phone.length >= 12 && regForm.agree) ? `linear-gradient(135deg, ${config.primaryColor}, ${config.secondaryColor})` : "#cbd5e1", color: "#fff", fontSize: 17, fontWeight: 800, cursor: (regForm.name && regForm.birth.length >= 6 && regForm.phone.length >= 12 && regForm.agree) ? "pointer" : "not-allowed", transition: "all 0.3s", boxShadow: (regForm.name && regForm.birth.length >= 6 && regForm.phone.length >= 12 && regForm.agree) ? `0 6px 24px ${config.primaryColor}44` : "none", fontFamily: config.titleFont, letterSpacing: 1 }}>
+            🚀 투어 시작하기
+          </button>
+        </div>
+      )}
+
+      <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 10, marginTop: 20 }}>© 2026 대전광역시</p>
+      <style>{`
+        @keyframes floatDown { 0% { transform: translateY(-10vh) rotate(0deg); opacity:0; } 10% { opacity:1; } 90% { opacity:1; } 100% { transform: translateY(110vh) rotate(360deg); opacity:0; } }
+        @keyframes heroFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+        @keyframes bounceIn { 0% { transform:scale(0.3);opacity:0 } 50% { transform:scale(1.05) } 70% { transform:scale(0.95) } 100% { transform:scale(1);opacity:1 } }
+        @keyframes toastIn { from { transform: translateX(-50%) translateY(-20px); opacity:0; } to { transform: translateX(-50%) translateY(0); opacity:1; } }
+      `}</style>
+    </div>
+  );
+
+  /* ════════════════════════════════════════════
+     ██ ADMIN PANEL
+     ════════════════════════════════════════════ */
+  if (screen === "admin" && adminAuth) return (
+    <div style={{ ...css, background: "#f1f5f9", minHeight: "100vh" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@300;400;500;700;900&family=Jua&family=Do+Hyeon&family=Gugi&family=Gaegu&family=Gamja+Flower&family=Gothic+A1:wght@400;700&display=swap" rel="stylesheet" />
+      <ToastNotification />
+
+      {/* Header */}
+      <div style={{ background: "#1e293b", color: "#fff", padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 100 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 18 }}>⚙️</span><span style={{ fontWeight: 800, fontSize: 15 }}>관리자 모드</span></div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={() => showToast("✅ 모든 설정이 저장되어 있습니다!")} style={{ background: "#059669", border: "none", color: "#fff", padding: "7px 14px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 700 }}>💾 저장확인</button>
+          <button onClick={() => { setScreen(user ? "tour" : "register"); }} style={{ background: "rgba(255,255,255,0.12)", border: "none", color: "#fff", padding: "7px 14px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>✕ 나가기</button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", overflowX: "auto", background: "#fff", borderBottom: "2px solid #f1f5f9", position: "sticky", top: 49, zIndex: 99 }}>
+        {[{ id: "locations", icon: "📍", label: "장소" }, { id: "design", icon: "🎨", label: "디자인" }, { id: "qrcodes", icon: "📱", label: "QR코드" }, { id: "festival", icon: "📋", label: "축제정보" }, { id: "users", icon: "👥", label: "참가자" }].map(t => (
+          <button key={t.id} onClick={() => setAdminTab(t.id)} style={{ padding: "11px 14px", border: "none", borderBottom: adminTab === t.id ? `3px solid ${config.primaryColor}` : "3px solid transparent", background: "transparent", color: adminTab === t.id ? config.primaryColor : "#94a3b8", fontWeight: adminTab === t.id ? 700 : 400, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>{t.icon} {t.label}</button>
+        ))}
+      </div>
+
+      <div style={{ padding: 16, maxWidth: 600, margin: "0 auto" }}>
+        {/* Auto-save indicator */}
+        <div style={{ background: "#ecfdf5", borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#065f46" }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981", display: "inline-block", animation: "pulse 2s infinite" }} />
+          <span>자동 저장 활성화 — 모든 변경사항이 즉시 저장됩니다</span>
+        </div>
+
+        {/* ─── LOCATIONS ─── */}
+        {adminTab === "locations" && (<div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>스탬프 장소 ({config.locations.length}개)</h3>
+            <button onClick={() => { const nl = { id: `loc${Date.now()}`, name: "새 장소", icon: "📍", code: `DJSF2026-${String.fromCharCode(65 + config.locations.length)}${config.locations.length + 1}`, mission: "미션 내용 입력", desc: "장소 설명 입력", iconImage: null }; saveConfig({ ...config, locations: [...config.locations, nl] }); setEditLoc(nl.id); }} style={{ background: config.primaryColor, color: "#fff", border: "none", padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ 장소 추가</button>
+          </div>
+          {config.locations.map((loc, idx) => (
+            <div key={loc.id} style={{ background: "#fff", borderRadius: 14, padding: 16, marginBottom: 10, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", border: editLoc === loc.id ? `2px solid ${config.primaryColor}` : "1px solid #f1f5f9" }}>
+              {editLoc === loc.id ? (<div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b", display: "block", marginBottom: 6 }}>아이콘</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    {loc.iconImage ? <img src={loc.iconImage} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} /> : <span style={{ fontSize: 32 }}>{loc.icon}</span>}
+                    <button onClick={() => setShowEmojiPicker(showEmojiPicker === loc.id ? null : loc.id)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#f8fafc", fontSize: 11, cursor: "pointer" }}>이모지 변경</button>
+                    <button onClick={() => handleImageUpload((img) => { const u = config.locations.map(l => l.id === loc.id ? { ...l, iconImage: img } : l); saveConfig({ ...config, locations: u }); }, 200)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#f8fafc", fontSize: 11, cursor: "pointer" }}>이미지 업로드</button>
+                    {loc.iconImage && <button onClick={() => { const u = config.locations.map(l => l.id === loc.id ? { ...l, iconImage: null } : l); saveConfig({ ...config, locations: u }); }} style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #fecaca", background: "#fef2f2", fontSize: 11, cursor: "pointer", color: "#dc2626" }}>✕</button>}
+                  </div>
+                  {showEmojiPicker === loc.id && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8, padding: 8, background: "#f8fafc", borderRadius: 10, maxHeight: 120, overflowY: "auto" }}>
+                      {EMOJI_LIST.map(em => <button key={em} onClick={() => { const u = config.locations.map(l => l.id === loc.id ? { ...l, icon: em, iconImage: null } : l); saveConfig({ ...config, locations: u }); setShowEmojiPicker(null); }} style={{ width: 36, height: 36, border: loc.icon === em ? `2px solid ${config.primaryColor}` : "1px solid #e2e8f0", borderRadius: 8, background: "#fff", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{em}</button>)}
+                    </div>
+                  )}
+                </div>
+                {[{ k: "name", l: "장소명", t: "input" }, { k: "code", l: "QR 코드값 (고유 코드)", t: "input", mono: true }, { k: "mission", l: "미션 내용", t: "textarea" }, { k: "desc", l: "장소 설명", t: "textarea" }].map(f => (
+                  <div key={f.k} style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: "#64748b" }}>{f.l}</label>
+                    {f.t === "textarea" ? (
+                      <textarea value={loc[f.k]} onChange={e => { const u = config.locations.map(l => l.id === loc.id ? { ...l, [f.k]: e.target.value } : l); saveConfig({ ...config, locations: u }); }} rows={2} style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, boxSizing: "border-box", resize: "vertical" }} />
+                    ) : (
+                      <input value={loc[f.k]} onChange={e => { const v = f.k === "code" ? e.target.value.toUpperCase() : e.target.value; const u = config.locations.map(l => l.id === loc.id ? { ...l, [f.k]: v } : l); saveConfig({ ...config, locations: u }); }} style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, boxSizing: "border-box", fontFamily: f.mono ? "monospace" : "inherit" }} />
+                    )}
+                  </div>
+                ))}
+                <button onClick={() => { setEditLoc(null); setShowEmojiPicker(null); showToast("✅ 장소 수정 저장 완료!"); }} style={{ background: config.primaryColor, color: "#fff", border: "none", padding: "9px 24px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>✓ 편집 완료</button>
+              </div>) : (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                    {loc.iconImage ? <img src={loc.iconImage} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover" }} /> : <span style={{ fontSize: 26 }}>{loc.icon}</span>}
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{loc.name}</div>
+                      <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: "monospace" }}>{loc.code}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={() => setEditLoc(loc.id)} style={{ background: "#f1f5f9", border: "none", padding: "6px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>✏️</button>
+                    <button onClick={() => { if (config.locations.length <= 1) return; saveConfig({ ...config, locations: config.locations.filter(l => l.id !== loc.id) }); }} style={{ background: "#fef2f2", border: "none", padding: "6px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>🗑</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>)}
+
+        {/* ─── DESIGN ─── */}
+        {adminTab === "design" && (<div>
+          <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 14 }}>🎨 디자인 커스터마이징</h3>
+
+          <div style={{ background: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+            <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, color: "#334155" }}>🖼 이미지 관리</h4>
+            {[
+              { key: "heroImage", label: "시작화면 캐릭터", desc: "PNG 권장 (투명배경)", preview: 100 },
+              { key: "stampImage", label: "완료 스탬프 이미지", desc: "수집완료 시 표시", preview: 60 },
+              { key: "stampEmptyImage", label: "미완료 스탬프 이미지", desc: "미수집 시 표시", preview: 60 },
+              { key: "aiCharImage", label: "AI 안내 매니저 캐릭터", desc: "채팅 아바타 이미지 (정사각형 권장)", preview: 60 },
+              { key: "mapImage", label: "전체 안내 지도", desc: "장소 위치가 표시된 지도", preview: 140 },
+            ].map(item => (
+              <div key={item.key} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: "1px solid #f1f5f9" }}>
+                <div style={{ width: item.preview > 80 ? 80 : 56, height: item.preview > 80 ? 60 : 56, borderRadius: 10, background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", border: "2px dashed #e2e8f0", flexShrink: 0 }}>
+                  {config[item.key] ? <img src={config[item.key]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 10, color: "#94a3b8" }}>없음</span>}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{item.label}</div>
+                  <div style={{ fontSize: 10, color: "#94a3b8" }}>{item.desc}</div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <button onClick={() => handleImageUpload((img) => saveConfig({ ...config, [item.key]: img }), item.key === "mapImage" ? 1200 : 400)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid #e2e8f0", background: "#f8fafc", fontSize: 10, cursor: "pointer" }}>📷 업로드</button>
+                  {config[item.key] && <button onClick={() => saveConfig({ ...config, [item.key]: null })} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid #fecaca", background: "#fef2f2", fontSize: 10, cursor: "pointer", color: "#dc2626" }}>삭제</button>}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+            <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: "#334155" }}>✏️ 텍스트</h4>
+            {[{ k: "festivalName", l: "축제명" }, { k: "subtitle", l: "부제목" }].map(f => (
+              <div key={f.k} style={{ marginBottom: 10 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}>{f.l}</label>
+                <input value={config[f.k]} onChange={e => saveConfig({ ...config, [f.k]: e.target.value })} style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 14, boxSizing: "border-box" }} />
+              </div>
+            ))}
+            <div style={{ marginBottom: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: "#64748b" }}>완료 메시지</label>
+              <textarea value={config.completionMessage} onChange={e => saveConfig({ ...config, completionMessage: e.target.value })} rows={3} style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, boxSizing: "border-box", resize: "vertical" }} />
+            </div>
+          </div>
+
+          <div style={{ background: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+            <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: "#334155" }}>🎨 색상</h4>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {[{ k: "primaryColor", l: "메인" }, { k: "secondaryColor", l: "보조" }, { k: "accentColor", l: "강조" }, { k: "bgColor", l: "배경" }, { k: "textColor", l: "글자" }, { k: "cardBg", l: "카드" }].map(c => (
+                <div key={c.k}>
+                  <label style={{ fontSize: 10, fontWeight: 600, color: "#64748b" }}>{c.l}</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input type="color" value={config[c.k]} onChange={e => saveConfig({ ...config, [c.k]: e.target.value })} style={{ width: 32, height: 32, border: "2px solid #e2e8f0", borderRadius: 8, cursor: "pointer", padding: 0 }} />
+                    <input value={config[c.k]} onChange={e => saveConfig({ ...config, [c.k]: e.target.value })} style={{ flex: 1, padding: 7, borderRadius: 6, border: "1px solid #e2e8f0", fontSize: 11, fontFamily: "monospace" }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ background: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+            <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: "#334155" }}>🔤 폰트</h4>
+            {[{ k: "titleFont", l: "제목", opts: ["'Black Han Sans',sans-serif", "'Jua',sans-serif", "'Do Hyeon',sans-serif", "'Gugi',sans-serif", "'Gaegu',cursive"] }, { k: "fontFamily", l: "본문", opts: ["'Noto Sans KR',sans-serif", "'Jua',sans-serif", "'Gothic+A1',sans-serif", "'Gamja Flower',cursive", "'Gaegu',cursive"] }].map(f => (
+              <div key={f.k} style={{ marginBottom: 10 }}>
+                <label style={{ fontSize: 10, fontWeight: 600, color: "#64748b" }}>{f.l}</label>
+                <select value={config[f.k]} onChange={e => saveConfig({ ...config, [f.k]: e.target.value })} style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13 }}>
+                  {f.opts.map(o => <option key={o} value={o}>{o.split("'")[1]}</option>)}
+                </select>
+                <div style={{ marginTop: 4, padding: 8, background: "#f8fafc", borderRadius: 8, fontFamily: config[f.k], fontSize: f.k === "titleFont" ? 20 : 14 }}>미리보기 텍스트</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+            <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: "#334155" }}>👁 실시간 미리보기</h4>
+            <div style={{ background: `linear-gradient(135deg, ${config.primaryColor}, ${config.secondaryColor})`, borderRadius: 14, padding: 20, textAlign: "center" }}>
+              {config.heroImage && <img src={config.heroImage} alt="" style={{ width: 60, height: 60, objectFit: "contain", marginBottom: 6 }} />}
+              <div style={{ fontFamily: config.titleFont, fontSize: 16, color: "#fff" }}>{config.festivalName}</div>
+              <div style={{ fontFamily: config.fontFamily, fontSize: 11, color: "rgba(255,255,255,0.8)", marginTop: 3 }}>{config.subtitle}</div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 12 }}>
+                {config.locations.slice(0, 6).map((l, i) => (
+                  <div key={i} style={{ width: 30, height: 30, borderRadius: "50%", background: i < 3 ? config.accentColor : "rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: i < 3 ? 12 : 10, color: "#fff" }}>{i < 3 ? "✓" : l.icon}</div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>)}
+
+        {/* ─── QR CODES ─── */}
+        {adminTab === "qrcodes" && (<div>
+          <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>📱 QR 코드 관리</h3>
+          <p style={{ fontSize: 12, color: "#64748b", marginBottom: 16 }}>각 장소에 아래 QR 코드를 인쇄하여 비치해주세요. QR 코드를 길게 눌러 저장할 수 있습니다.</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {config.locations.map(loc => (
+              <div key={loc.id} style={{ background: "#fff", borderRadius: 14, padding: 14, textAlign: "center", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                <div style={{ fontSize: 22, marginBottom: 4 }}>{loc.icon}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 }}>{loc.name}</div>
+                <img src={getQRUrl(loc.code, 300)} alt={loc.code} style={{ width: "100%", maxWidth: 160, borderRadius: 8, border: "1px solid #f1f5f9" }} />
+                <div style={{ marginTop: 6, fontSize: 9, color: "#94a3b8", fontFamily: "monospace", background: "#f8fafc", padding: "3px 6px", borderRadius: 4 }}>{loc.code}</div>
+              </div>
+            ))}
+          </div>
+        </div>)}
+
+        {/* ─── FESTIVAL INFO + API KEY ─── */}
+        {adminTab === "festival" && (<div>
+          <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>📋 축제 정보 (AI 매니저용)</h3>
+          <p style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>여기 입력한 정보를 AI 매니저가 학습하여 관람객 질문에 답변합니다.</p>
+          <textarea value={config.festivalInfo} onChange={e => saveConfig({ ...config, festivalInfo: e.target.value })} rows={14} style={{ width: "100%", padding: 14, borderRadius: 12, border: "2px solid #e2e8f0", fontSize: 14, lineHeight: 1.8, boxSizing: "border-box", resize: "vertical" }} placeholder="축제 정보를 자유롭게 입력하세요..." />
+          <div style={{ marginTop: 10, padding: 12, background: "#ecfdf5", borderRadius: 10, fontSize: 11, color: "#065f46" }}>💡 축제 일정, 운영시간, 주차정보, 프로그램, 맛집, 편의시설 등을 상세히 작성하면 AI 답변 품질이 높아집니다.</div>
+
+          {/* API Key section */}
+          <div style={{ marginTop: 20, background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", border: "2px solid #fef3c7" }}>
+            <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: "#92400e", display: "flex", alignItems: "center", gap: 6 }}>🔑 AI 기능 설정 (외부 호스팅용)</h4>
+            <p style={{ fontSize: 11, color: "#78716c", lineHeight: 1.6, marginBottom: 12 }}>
+              웹호스팅에 업로드하여 사용할 경우, AI 채팅 기능을 위해 Anthropic API 키가 필요합니다.<br />
+              <strong>console.anthropic.com</strong>에서 발급받을 수 있습니다.
+            </p>
+            <div style={{ position: "relative" }}>
+              <input
+                type="password"
+                value={config.apiKey || ""}
+                onChange={e => saveConfig({ ...config, apiKey: e.target.value })}
+                placeholder="sk-ant-api03-..."
+                style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "2px solid #e2e8f0", fontSize: 13, boxSizing: "border-box", fontFamily: "monospace" }}
+              />
+            </div>
+            <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: config.apiKey ? "#10b981" : "#f59e0b" }} />
+              <span style={{ fontSize: 11, color: config.apiKey ? "#065f46" : "#92400e" }}>
+                {config.apiKey ? "API 키 설정됨 — AI 채팅이 활성화됩니다" : "미설정 — Claude.ai 내에서는 자동 작동, 외부 호스팅에서는 키 필요"}
+              </span>
+            </div>
+          </div>
+        </div>)}
+
+        {/* ─── PARTICIPANTS ─── */}
+        {adminTab === "users" && (<div>
+          <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 14 }}>👥 참가자 ({participants.length}명)</h3>
+          {participants.length === 0 ? <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>아직 참가자가 없습니다</div> : (
+            <div style={{ background: "#fff", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "40px 1fr 80px 1fr", padding: "10px 12px", background: "#f8fafc", fontSize: 10, fontWeight: 700, color: "#64748b" }}><div>#</div><div>이름</div><div>생년월일</div><div>연락처</div></div>
+              {participants.slice().reverse().map((p, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "40px 1fr 80px 1fr", padding: "10px 12px", borderTop: "1px solid #f1f5f9", fontSize: 12 }}>
+                  <div style={{ color: "#94a3b8" }}>{participants.length - i}</div><div style={{ fontWeight: 600 }}>{p.name}</div><div>{p.birth}</div><div style={{ fontSize: 11 }}>{p.phone}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>)}
+      </div>
+
+      <style>{`@keyframes pulse { 0%,100% { transform:scale(1);opacity:1 } 50% { transform:scale(1.02);opacity:0.7 } } @keyframes toastIn { from { transform: translateX(-50%) translateY(-20px); opacity:0; } to { transform: translateX(-50%) translateY(0); opacity:1; } }`}</style>
+    </div>
+  );
+
+  /* ════════════════════════════════════════════
+     ██ MAIN TOUR SCREEN
+     ════════════════════════════════════════════ */
+  return (
+    <div style={{ ...css, background: config.bgColor, minHeight: "100vh", paddingBottom: 90, position: "relative" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@300;400;500;700;900&family=Jua&family=Do+Hyeon&family=Gugi&family=Gaegu&family=Gamja+Flower&family=Gothic+A1:wght@400;700&display=swap" rel="stylesheet" />
+      <ToastNotification />
+      <AdminButton />
+      {showAdmin && !adminAuth && <AdminPwModal />}
+
+      {/* ─── COMPLETION MODAL ─── */}
+      {showComplete && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, backdropFilter: "blur(6px)" }} onClick={() => setShowComplete(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 24, padding: "36px 28px", width: "100%", maxWidth: 340, textAlign: "center", animation: "bounceIn 0.5s" }}>
+            <div style={{ fontSize: 56, marginBottom: 8 }}>🏆</div>
+            <h2 style={{ fontFamily: config.titleFont, fontSize: 22, color: config.primaryColor, margin: "0 0 10px" }}>미션 완료!</h2>
+            <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.8, whiteSpace: "pre-line" }}>{config.completionMessage}</p>
+            <div style={{ marginTop: 16, padding: 14, background: `${config.primaryColor}0a`, borderRadius: 12, fontSize: 13, color: config.primaryColor, fontWeight: 600 }}>📋 {user?.name} | 📱 {user?.phone}</div>
+            <button onClick={() => setShowComplete(false)} style={{ marginTop: 18, padding: "12px 40px", borderRadius: 12, border: "none", background: config.accentColor, color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer" }}>확인</button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── QR SCANNER MODAL ─── */}
+      {(scanning || scanResult) && (
+        <div style={{ position: "fixed", inset: 0, background: "#000", zIndex: 1100, display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: "14px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(0,0,0,0.8)", zIndex: 10 }}>
+            <span style={{ color: "#fff", fontSize: 15, fontWeight: 700 }}>📷 QR 스캔</span>
+            <button onClick={() => { stopScanner(); setScanResult(null); }} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", padding: "8px 16px", borderRadius: 8, cursor: "pointer", fontSize: 13 }}>✕ 닫기</button>
+          </div>
+
+          {scanResult && (
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 30 }}>
+              <div style={{ background: "#fff", borderRadius: 24, padding: "40px 28px", width: "100%", maxWidth: 340, textAlign: "center", animation: "bounceIn 0.4s" }}>
+                <div style={{ fontSize: 56, marginBottom: 8 }}>{scanResult.icon}</div>
+                <h3 style={{ fontSize: 18, fontWeight: 800, color: scanResult.success ? config.primaryColor : "#dc2626", margin: "0 0 8px" }}>{scanResult.success ? "스탬프 획득!" : "알림"}</h3>
+                <p style={{ fontSize: 15, color: "#475569", lineHeight: 1.6 }}>{scanResult.msg}</p>
+                <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+                  <button onClick={() => { setScanResult(null); startScanner(); }} style={{ flex: 1, padding: 12, borderRadius: 10, border: "1px solid #e2e8f0", background: "#f8fafc", fontSize: 14, cursor: "pointer" }}>계속 스캔</button>
+                  <button onClick={() => { setScanResult(null); }} style={{ flex: 1, padding: 12, borderRadius: 10, border: "none", background: config.primaryColor, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>돌아가기</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!scanResult && (
+            <div style={{ flex: 1, position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <video ref={videoRef} style={{ width: "100%", height: "100%", objectFit: "cover" }} playsInline muted />
+              <canvas ref={canvasRef} style={{ display: "none" }} />
+              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: 240, height: 240, position: "relative" }}>
+                  {[[0, 0, "top", "left"], [0, 1, "top", "right"], [1, 0, "bottom", "left"], [1, 1, "bottom", "right"]].map(([r, c, v, h]) => (
+                    <div key={`${r}${c}`} style={{ position: "absolute", [v]: -2, [h]: -2, width: 36, height: 36, borderColor: config.secondaryColor, borderStyle: "solid", borderWidth: 0, [`border${v.charAt(0).toUpperCase() + v.slice(1)}Width`]: 4, [`border${h.charAt(0).toUpperCase() + h.slice(1)}Width`]: 4, [`border${v.charAt(0).toUpperCase() + v.slice(1)}${h.charAt(0).toUpperCase() + h.slice(1)}Radius`]: 12 }} />
+                  ))}
+                  <div style={{ position: "absolute", left: 10, right: 10, height: 3, background: `linear-gradient(90deg, transparent, ${config.secondaryColor}, transparent)`, borderRadius: 2, animation: "scanLine 2s ease-in-out infinite" }} />
+                </div>
+              </div>
+              {cameraError && (
+                <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.9)", padding: 30 }}>
+                  <div style={{ textAlign: "center", color: "#fff" }}>
+                    <div style={{ fontSize: 48, marginBottom: 12 }}>📷</div>
+                    <p style={{ fontSize: 15, whiteSpace: "pre-line", lineHeight: 1.6 }}>{cameraError}</p>
+                    <button onClick={startScanner} style={{ marginTop: 20, padding: "12px 30px", borderRadius: 10, border: "none", background: config.primaryColor, color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>다시 시도</button>
+                  </div>
+                </div>
+              )}
+              <div style={{ position: "absolute", bottom: 30, left: 0, right: 0, textAlign: "center" }}>
+                <p style={{ color: "rgba(255,255,255,0.8)", fontSize: 13, textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>QR 코드를 사각형 안에 맞춰주세요</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── MAP MODAL ─── */}
+      {showMap && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 1050, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, backdropFilter: "blur(4px)" }} onClick={() => setShowMap(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 420, maxHeight: "90vh", overflow: "hidden", display: "flex", flexDirection: "column", animation: "slideUp 0.3s" }}>
+            <div style={{ padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #f1f5f9" }}>
+              <span style={{ fontWeight: 800, fontSize: 15, color: config.textColor }}>🗺 전체 안내 지도</span>
+              <button onClick={() => setShowMap(false)} style={{ width: 32, height: 32, borderRadius: "50%", border: "none", background: "#f1f5f9", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+            </div>
+            <div style={{ flex: 1, overflow: "auto", padding: 12 }}>
+              {config.mapImage ? (
+                <img src={config.mapImage} alt="안내 지도" style={{ width: "100%", borderRadius: 12, display: "block" }} />
+              ) : (
+                <div style={{ padding: "60px 20px", textAlign: "center", color: "#94a3b8" }}>
+                  <div style={{ fontSize: 48, marginBottom: 12 }}>🗺</div>
+                  <p style={{ fontSize: 14 }}>안내 지도가 등록되지 않았습니다</p>
+                  <p style={{ fontSize: 12, marginTop: 4 }}>관리자가 지도를 업로드하면 여기에 표시됩니다</p>
+                </div>
+              )}
+              <div style={{ marginTop: 12 }}>
+                {config.locations.map((loc, i) => (
+                  <div key={loc.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 6px", borderBottom: "1px solid #f8fafc" }}>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: stamps[loc.id] ? config.accentColor : "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: stamps[loc.id] ? "#fff" : "#64748b", fontWeight: 700, flexShrink: 0 }}>{stamps[loc.id] ? "✓" : i + 1}</div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: config.textColor }}>{loc.icon} {loc.name}</div>
+                      <div style={{ fontSize: 11, color: "#94a3b8" }}>{loc.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── AI CHAT SCREEN ─── */}
+      {screen === "chat" && (
+        <div style={{ position: "fixed", inset: 0, background: config.bgColor, zIndex: 900, display: "flex", flexDirection: "column" }}>
+          <div style={{ background: `linear-gradient(135deg, ${config.primaryColor}, ${config.secondaryColor})`, color: "#fff", padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+            <button onClick={() => setScreen("tour")} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", width: 36, height: 36, borderRadius: "50%", cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>←</button>
+            <div style={{ width: 36, height: 36, borderRadius: "50%", overflow: "hidden", flexShrink: 0 }}><AiAvatar size={36} /></div>
+            <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 14 }}>AI 안내 매니저</div><div style={{ fontSize: 10, opacity: 0.8 }}>무엇이든 물어보세요!</div></div>
+          </div>
+          <div style={{ flex: 1, overflow: "auto", padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+            {chatMessages.length === 0 && (
+              <div style={{ textAlign: "center", padding: "32px 16px", color: "#94a3b8" }}>
+                <AiAvatarLarge />
+                <p style={{ fontSize: 14, fontWeight: 600, color: "#475569" }}>AI 안내 매니저입니다</p>
+                <p style={{ fontSize: 12, marginBottom: 16 }}>축제에 대해 궁금한 점을 물어보세요!</p>
+                {["축제 일정이 어떻게 되나요?", "스탬프 투어는 어떻게 참여하나요?", "주차장이 어디에 있나요?"].map(q => (
+                  <button key={q} onClick={() => setChatInput(q)} style={{ display: "block", width: "100%", padding: "10px 14px", marginBottom: 8, borderRadius: 12, border: `1px solid ${config.primaryColor}22`, background: `${config.primaryColor}06`, color: config.primaryColor, fontSize: 13, cursor: "pointer", textAlign: "left" }}>💬 {q}</button>
+                ))}
+              </div>
+            )}
+            {chatMessages.map((msg, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", gap: 8 }}>
+                {msg.role !== "user" && <AiAvatar size={30} />}
+                <div style={{ maxWidth: "78%", padding: "10px 14px", borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "14px 14px 14px 4px", background: msg.role === "user" ? config.primaryColor : "#fff", color: msg.role === "user" ? "#fff" : config.textColor, fontSize: 14, lineHeight: 1.7, boxShadow: "0 1px 3px rgba(0,0,0,0.06)", whiteSpace: "pre-wrap" }}>{msg.text}</div>
+              </div>
+            ))}
+            {chatLoading && <div style={{ display: "flex", gap: 8, alignItems: "center" }}><AiAvatar size={30} /><div style={{ padding: "10px 16px", background: "#fff", borderRadius: 14, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}><span style={{ fontSize: 18 }} className="dotpulse">•••</span></div></div>}
+            <div ref={chatEndRef} />
+          </div>
+          <div style={{ padding: "10px 14px", borderTop: "1px solid #e2e8f0", background: "#fff", display: "flex", gap: 8, flexShrink: 0, paddingBottom: "max(10px, env(safe-area-inset-bottom))" }}>
+            <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }} placeholder="질문을 입력하세요..." style={{ flex: 1, padding: "12px 16px", borderRadius: 24, border: "2px solid #e2e8f0", fontSize: 14, outline: "none" }} />
+            <button onClick={sendChat} disabled={!chatInput.trim() || chatLoading} style={{ width: 44, height: 44, borderRadius: "50%", border: "none", background: chatInput.trim() ? config.primaryColor : "#e2e8f0", color: "#fff", fontSize: 18, cursor: chatInput.trim() ? "pointer" : "default" }}>↑</button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── HEADER ─── */}
+      <div style={{ background: `linear-gradient(160deg, ${config.primaryColor} 0%, ${config.secondaryColor} 100%)`, padding: "22px 20px 52px", textAlign: "center", position: "relative" }}>
+        {config.heroImage && <img src={config.heroImage} alt="" style={{ width: 50, height: 50, objectFit: "contain", position: "absolute", top: 12, left: 16, filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.2))" }} />}
+        <h1 style={{ fontFamily: config.titleFont, fontSize: 22, color: "#fff", margin: 0, textShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>{config.festivalName}</h1>
+        <p style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, marginTop: 3, letterSpacing: 2 }}>{config.subtitle}</p>
+        <p style={{ color: "rgba(255,255,255,0.9)", fontSize: 13, marginTop: 8 }}>👋 <strong>{user?.name}</strong>님, 환영합니다!</p>
+      </div>
+
+      {/* ─── PROGRESS CARD ─── */}
+      <div style={{ margin: "-32px 16px 14px", background: config.cardBg, borderRadius: 18, padding: "18px 18px 14px", boxShadow: "0 6px 24px rgba(0,0,0,0.08)", position: "relative", zIndex: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: config.textColor }}>🗂 스탬프 수집</span>
+          <span style={{ fontSize: 22, fontWeight: 900, color: config.primaryColor, fontFamily: config.titleFont }}>{stampCount} / {config.locations.length}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "center", gap: 8, flexWrap: "wrap" }}>
+          {config.locations.map(loc => <StampIcon key={loc.id} loc={loc} stamped={!!stamps[loc.id]} size={42} />)}
+        </div>
+        <div style={{ marginTop: 12, height: 7, background: "#e8edf2", borderRadius: 4, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${(stampCount / Math.max(config.locations.length, 1)) * 100}%`, background: `linear-gradient(90deg, ${config.primaryColor}, ${config.accentColor})`, borderRadius: 4, transition: "width 0.6s cubic-bezier(0.34,1.56,0.64,1)" }} />
+        </div>
+        {allStamped && <button onClick={() => setShowComplete(true)} style={{ width: "100%", marginTop: 12, padding: 13, borderRadius: 12, border: "none", background: `linear-gradient(135deg, ${config.accentColor}, #f59e0b)`, color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", animation: "pulse 2s infinite", fontFamily: config.titleFont }}>🏆 선물 수령하기</button>}
+      </div>
+
+      {/* ─── SCAN & MAP BUTTONS ─── */}
+      <div style={{ padding: "0 16px", display: "flex", gap: 10, marginBottom: 14 }}>
+        <button onClick={() => { setScanResult(null); startScanner(); }} style={{ flex: 2, padding: 14, borderRadius: 14, border: "none", background: `linear-gradient(135deg, ${config.primaryColor}, ${config.secondaryColor})`, color: "#fff", fontSize: 15, fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: `0 4px 16px ${config.primaryColor}33` }}>
+          <span style={{ fontSize: 20 }}>📷</span> QR 스캔
+        </button>
+        <button onClick={() => setShowMap(true)} style={{ flex: 1, padding: 14, borderRadius: 14, border: `2px solid ${config.primaryColor}22`, background: config.cardBg, color: config.primaryColor, fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          🗺 지도
+        </button>
+      </div>
+
+      {/* ─── LOCATIONS LIST ─── */}
+      <div style={{ padding: "0 16px" }}>
+        <h3 style={{ fontSize: 14, fontWeight: 800, color: config.textColor, marginBottom: 10 }}>📍 스탬프 장소</h3>
+        {config.locations.map((loc) => (
+          <div key={loc.id} style={{ background: config.cardBg, borderRadius: 14, padding: "14px 14px", marginBottom: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.04)", display: "flex", gap: 12, alignItems: "center", border: stamps[loc.id] ? `2px solid ${config.accentColor}30` : "1px solid #f1f5f9", transition: "all 0.3s" }}>
+            <StampIcon loc={loc} stamped={!!stamps[loc.id]} size={44} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: config.textColor }}>{loc.name}</div>
+              <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{loc.desc}</div>
+              <div style={{ fontSize: 11, color: config.primaryColor, marginTop: 3, fontWeight: 500 }}>📌 {loc.mission}</div>
+            </div>
+            {stamps[loc.id] && <div style={{ background: `${config.accentColor}15`, color: config.accentColor, padding: "4px 10px", borderRadius: 20, fontSize: 10, fontWeight: 800, whiteSpace: "nowrap" }}>완료 ✓</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* ─── BOTTOM NAV ─── */}
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#fff", borderTop: "1px solid #e8edf2", display: "flex", justifyContent: "space-around", alignItems: "flex-end", padding: "6px 0", paddingBottom: "max(6px, env(safe-area-inset-bottom))", zIndex: 100 }}>
+        <button onClick={() => setScreen("tour")} style={{ border: "none", background: "transparent", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: "pointer", color: screen === "tour" ? config.primaryColor : "#94a3b8", fontSize: 10, fontWeight: 600, padding: "4px 18px" }}>
+          <span style={{ fontSize: 20 }}>🗺</span>투어
+        </button>
+        <button onClick={() => { setScanResult(null); startScanner(); }} style={{ border: "none", background: `linear-gradient(135deg, ${config.primaryColor}, ${config.secondaryColor})`, width: 54, height: 54, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", marginTop: -22, boxShadow: `0 4px 20px ${config.primaryColor}44`, position: "relative" }}>
+          <span style={{ fontSize: 24 }}>📷</span>
+        </button>
+        <button onClick={() => setScreen("chat")} style={{ border: "none", background: "transparent", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: "pointer", color: "#94a3b8", fontSize: 10, fontWeight: 600, padding: "4px 18px" }}>
+          {config.aiCharImage ? <img src={config.aiCharImage} alt="" style={{ width: 22, height: 22, borderRadius: "50%", objectFit: "cover" }} /> : <span style={{ fontSize: 20 }}>🤖</span>}AI안내
+        </button>
+      </div>
+
+      <style>{`
+        @keyframes bounceIn { 0% { transform:scale(0.3);opacity:0 } 50% { transform:scale(1.05) } 70% { transform:scale(0.95) } 100% { transform:scale(1);opacity:1 } }
+        @keyframes pulse { 0%,100% { transform:scale(1) } 50% { transform:scale(1.02) } }
+        @keyframes slideUp { from { transform:translateY(40px);opacity:0 } to { transform:translateY(0);opacity:1 } }
+        @keyframes scanLine { 0% { top:10% } 50% { top:85% } 100% { top:10% } }
+        @keyframes toastIn { from { transform: translateX(-50%) translateY(-20px); opacity:0; } to { transform: translateX(-50%) translateY(0); opacity:1; } }
+        * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
+        input,textarea,select { font-family:inherit; }
+        .dotpulse { animation:blink 1.4s infinite; }
+        @keyframes blink { 0%,100% { opacity:0.2 } 50% { opacity:1 } }
+      `}</style>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App));
 </script>
 </body>
 </html>
