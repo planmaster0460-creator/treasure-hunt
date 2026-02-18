@@ -15,6 +15,7 @@
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script>
 // ─── localStorage polyfill for window.storage ───
 window.storage = {
@@ -166,11 +167,11 @@ function App() {
 
   // ─── Load jsQR library ───
   useEffect(() => {
+    if (window.jsQR) { jsQRRef.current = window.jsQR; return; }
     const script = document.createElement("script");
     script.src = "https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js";
     script.onload = () => { jsQRRef.current = window.jsQR; };
     document.head.appendChild(script);
-    return () => { try { document.head.removeChild(script); } catch {} };
   }, []);
 
   // ─── Save helpers ───
@@ -227,46 +228,89 @@ function App() {
   };
 
   // ─── QR Camera Scanner ───
+  const scanActiveRef = useRef(false);
+
   const startScanner = async () => {
     setScanning(true);
     setCameraError(null);
     setScanResult(null);
+    scanActiveRef.current = true;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute("playsinline", true);
         await videoRef.current.play();
-        scanFrame();
+        // Wait for jsQR to load then start scanning
+        const waitForJsQR = () => {
+          if (jsQRRef.current || window.jsQR) {
+            if (!jsQRRef.current) jsQRRef.current = window.jsQR;
+            scanLoop();
+          } else {
+            setTimeout(waitForJsQR, 100);
+          }
+        };
+        waitForJsQR();
       }
     } catch (err) {
-      setCameraError(err.name === "NotAllowedError" ? "카메라 접근이 거부되었습니다.\n설정에서 카메라 권한을 허용해주세요." : "카메라를 시작할 수 없습니다.\n다른 앱에서 카메라를 사용중인지 확인해주세요.");
+      setCameraError(err.name === "NotAllowedError"
+        ? "카메라 접근이 거부되었습니다.\n브라우저 설정에서 카메라 권한을 허용해주세요."
+        : "카메라를 시작할 수 없습니다.\n다른 앱에서 카메라를 사용중인지 확인해주세요.");
     }
   };
 
-  const scanFrame = () => {
-    if (!videoRef.current || !canvasRef.current || !jsQRRef.current) {
-      scanAnimRef.current = requestAnimationFrame(scanFrame);
-      return;
-    }
+  const scanLoop = () => {
+    if (!scanActiveRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (video.readyState !== video.HAVE_ENOUGH_DATA) {
-      scanAnimRef.current = requestAnimationFrame(scanFrame);
+    const jsQR = jsQRRef.current;
+    if (!video || !canvas || !jsQR || video.readyState < video.HAVE_ENOUGH_DATA) {
+      setTimeout(scanLoop, 150);
       return;
     }
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    // Scan at reduced resolution for performance
+    const scale = Math.min(1, 640 / Math.max(vw, vh));
+    const sw = Math.round(vw * scale);
+    const sh = Math.round(vh * scale);
+    canvas.width = sw;
+    canvas.height = sh;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQRRef.current(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+
+    // Try 1: Full frame scan
+    ctx.drawImage(video, 0, 0, sw, sh);
+    let imageData = ctx.getImageData(0, 0, sw, sh);
+    let code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
+
+    // Try 2: Center-cropped scan (better for close-up QR)
+    if (!code) {
+      const cx = Math.round(vw * 0.2);
+      const cy = Math.round(vh * 0.2);
+      const cw = Math.round(vw * 0.6);
+      const ch = Math.round(vh * 0.6);
+      const csw = Math.round(cw * scale);
+      const csh = Math.round(ch * scale);
+      canvas.width = csw;
+      canvas.height = csh;
+      ctx.drawImage(video, cx, cy, cw, ch, 0, 0, csw, csh);
+      imageData = ctx.getImageData(0, 0, csw, csh);
+      code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
+    }
+
     if (code?.data) {
+      scanActiveRef.current = false;
+      // Vibrate on success
+      try { navigator.vibrate?.(200); } catch {}
       handleScannedCode(code.data);
       return;
     }
-    scanAnimRef.current = requestAnimationFrame(scanFrame);
+    // Throttle: scan every ~200ms instead of every frame
+    setTimeout(scanLoop, 200);
   };
 
   const handleScannedCode = (data) => {
@@ -286,6 +330,7 @@ function App() {
   };
 
   const stopScanner = () => {
+    scanActiveRef.current = false;
     if (scanAnimRef.current) cancelAnimationFrame(scanAnimRef.current);
     if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
     streamRef.current = null;
