@@ -141,10 +141,15 @@ function App() {
   // ─── Load everything on mount ───
   useEffect(() => {
     (async () => {
-      try {
-        const r = await window.storage.get("stamp-config-v2");
-        if (r?.value) setConfig(JSON.parse(r.value));
-      } catch {}
+      // Config priority: EMBEDDED_CONFIG (exported HTML) > localStorage > DEFAULT_CONFIG
+      if (window.EMBEDDED_CONFIG) {
+        setConfig({ ...DEFAULT_CONFIG, ...window.EMBEDDED_CONFIG });
+      } else {
+        try {
+          const r = await window.storage.get("stamp-config-v2");
+          if (r?.value) setConfig(JSON.parse(r.value));
+        } catch {}
+      }
       try {
         const r = await window.storage.get("stamp-participants-v2", true);
         if (r?.value) setParticipants(JSON.parse(r.value));
@@ -737,7 +742,7 @@ function App() {
 
       {/* Tabs */}
       <div style={{ display: "flex", overflowX: "auto", background: "#fff", borderBottom: "2px solid #f1f5f9", position: "sticky", top: 49, zIndex: 99 }}>
-        {[{ id: "locations", icon: "📍", label: "장소" }, { id: "design", icon: "🎨", label: "디자인" }, { id: "qrcodes", icon: "📱", label: "QR코드" }, { id: "festival", icon: "📋", label: "축제정보" }, { id: "users", icon: "👥", label: "참가자" }].map(t => (
+        {[{ id: "locations", icon: "📍", label: "장소" }, { id: "design", icon: "🎨", label: "디자인" }, { id: "qrcodes", icon: "📱", label: "QR코드" }, { id: "festival", icon: "📋", label: "축제정보" }, { id: "users", icon: "👥", label: "참가자" }, { id: "deploy", icon: "📤", label: "배포" }].map(t => (
           <button key={t.id} onClick={() => setAdminTab(t.id)} style={{ padding: "11px 14px", border: "none", borderBottom: adminTab === t.id ? `3px solid ${config.primaryColor}` : "3px solid transparent", background: "transparent", color: adminTab === t.id ? config.primaryColor : "#94a3b8", fontWeight: adminTab === t.id ? 700 : 400, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>{t.icon} {t.label}</button>
         ))}
       </div>
@@ -1002,6 +1007,129 @@ function App() {
               ))}
             </div>
           )}
+        </div>)}
+
+        {/* ─── DEPLOY ─── */}
+        {adminTab === "deploy" && (<div>
+          <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>📤 배포용 파일 내보내기</h3>
+          <p style={{ fontSize: 12, color: "#64748b", marginBottom: 14, lineHeight: 1.6 }}>현재 설정(이미지, 장소, 디자인 등)이 모두 포함된 HTML 파일을 다운로드합니다.<br />이 파일을 웹호스팅에 업로드하면 모든 방문자가 동일한 설정을 볼 수 있습니다.</p>
+
+          <div style={{ background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", marginBottom: 14 }}>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#334155", marginBottom: 10 }}>현재 설정 요약</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {[
+                  { label: "장소 수", val: `${config.locations.length}개` },
+                  { label: "배경 테마", val: BG_THEMES.find(t => t.id === config.bgTheme)?.name || "없음" },
+                  { label: "이미지", val: `${[config.heroImage, config.stampImage, config.stampEmptyImage, config.mapImage, config.aiCharImage].filter(Boolean).length}개 설정` },
+                  { label: "AI 키", val: config.apiKey ? "✅ 설정됨" : "⚠️ 미설정" },
+                  { label: "홈페이지 링크", val: config.linkHome?.url ? "✅" : "—" },
+                  { label: "SNS 링크", val: config.linkSns?.url ? "✅" : "—" },
+                ].map((item, i) => (
+                  <div key={i} style={{ background: "#f8fafc", borderRadius: 8, padding: "8px 12px" }}>
+                    <div style={{ fontSize: 10, color: "#94a3b8" }}>{item.label}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#334155" }}>{item.val}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={() => {
+              showToast("⏳ 파일 생성중...", "info");
+              setTimeout(() => {
+                try {
+                  const exportConfig = JSON.stringify(config);
+                  const html = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>${config.festivalName} - 스탬프 투어</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body,#root{width:100%;min-height:100vh;min-height:100dvh}
+body{font-family:'Noto Sans KR',sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+</style>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"><\/script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"><\/script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"><\/script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"><\/script>
+<script>
+window.EMBEDDED_CONFIG = ${exportConfig};
+window.storage = {
+  async get(key, shared) {
+    const v = localStorage.getItem("st_" + key);
+    if (v === null) throw new Error("not found");
+    return { key, value: v, shared: !!shared };
+  },
+  async set(key, value, shared) {
+    localStorage.setItem("st_" + key, value);
+    return { key, value, shared: !!shared };
+  },
+  async delete(key, shared) {
+    localStorage.removeItem("st_" + key);
+    return { key, deleted: true, shared: !!shared };
+  },
+  async list(prefix, shared) {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith("st_" + (prefix || ""))) keys.push(k.slice(3));
+    }
+    return { keys, prefix, shared: !!shared };
+  }
+};
+<\/script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-type="module">
+` + document.querySelector('script[type="text/babel"]').textContent + `
+<\/script>
+</body>
+</html>`;
+                  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "stamp-tour.html";
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                  showToast("✅ 파일 다운로드 완료!");
+                } catch (err) {
+                  showToast("❌ 파일 생성 실패: " + err.message, "error");
+                }
+              }, 300);
+            }} style={{ width: "100%", padding: 16, borderRadius: 14, border: "none", background: `linear-gradient(135deg, ${config.primaryColor}, ${config.secondaryColor})`, color: "#fff", fontSize: 16, fontWeight: 800, cursor: "pointer", boxShadow: `0 6px 24px ${config.primaryColor}44`, letterSpacing: 1 }}>
+              📤 배포용 HTML 다운로드
+            </button>
+          </div>
+
+          <div style={{ background: "#fffbeb", borderRadius: 12, padding: 14, border: "1px solid #fef3c7" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#92400e", marginBottom: 8 }}>💡 사용 방법</div>
+            <div style={{ fontSize: 11, color: "#78716c", lineHeight: 1.8 }}>
+              1. 위 버튼으로 <strong>stamp-tour.html</strong> 파일을 다운로드<br />
+              2. 웹호스팅 서버에 이 파일을 업로드<br />
+              3. 모든 방문자가 동일한 설정(이미지, 장소, 디자인)을 볼 수 있음<br />
+              4. 설정을 변경할 때마다 다시 내보내기 → 재업로드
+            </div>
+          </div>
+
+          <div style={{ background: "#f0fdf4", borderRadius: 12, padding: 14, marginTop: 10, border: "1px solid #dcfce7" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#065f46", marginBottom: 6 }}>📋 포함되는 항목</div>
+            <div style={{ fontSize: 11, color: "#047857", lineHeight: 1.8 }}>
+              ✅ 축제명, 색상, 폰트, 배경 스킨<br />
+              ✅ 모든 업로드된 이미지 (base64 내장)<br />
+              ✅ 장소, QR코드, 미션 정보<br />
+              ✅ AI 채팅 API 키<br />
+              ✅ 홈페이지/SNS 바로가기 링크<br />
+              ✅ 완료 메시지
+            </div>
+          </div>
         </div>)}
       </div>
 
