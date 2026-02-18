@@ -60,6 +60,7 @@ const DEFAULT_CONFIG = {
   cardBg: "#FFFFFF",
   fontFamily: "'Noto Sans KR', sans-serif",
   titleFont: "'Black Han Sans', sans-serif",
+  bgTheme: "space",
   completionMessage: "축하합니다! 🎉\n모든 스탬프를 수집했습니다!\n\n📍 DCC 2전시장 종합안내소에서\n기념품을 수령하세요!\n\n※ 기념품 소진 시 이벤트가 조기 종료될 수 있습니다.",
   festivalInfo: "2026 대전 사이언스 페스티벌은 대전광역시 엑스포시민광장 일대에서 개최됩니다.\n\n▶ 기간: 2026년 10월 15일 ~ 10월 20일\n▶ 장소: 대전 엑스포시민광장 및 과학문화거리\n▶ 주최: 대전광역시\n▶ 주관: 대전관광공사\n\n다양한 과학 체험 프로그램과 공연, 전시가 준비되어 있습니다.",
   apiKey: "",
@@ -82,6 +83,16 @@ const DEFAULT_CONFIG = {
 
 const ADMIN_PASSWORD = "0460";
 const EMOJI_LIST = ["🔬","🚀","🤖","🧬","⚡","🌌","🎪","🎭","🎨","🎵","🏛","🌳","🎡","🎢","🎯","🏆","⭐","💎","🔭","🧪","🧲","🌍","☀️","🌊","🦕","🐉","🎓","📡","💡","🎈","🎁","🏅","🔮","🛸","🌈","🎶","🖼","🗿","⛩","🏰"];
+
+const BG_THEMES = [
+  { id: "none", name: "없음", icon: "⬜", desc: "단색 그라데이션" },
+  { id: "space", name: "우주", icon: "🌌", desc: "별이 반짝이는 우주 공간" },
+  { id: "atom", name: "원자", icon: "⚛️", desc: "궤도를 도는 전자 입자" },
+  { id: "dna", name: "DNA", icon: "🧬", desc: "떠다니는 이중나선 분자" },
+  { id: "circuit", name: "회로", icon: "🔬", desc: "전자회로 네온 라인" },
+  { id: "rocket", name: "로켓", icon: "🚀", desc: "별빛 속 발사체 궤적" },
+  { id: "bubble", name: "버블", icon: "🧪", desc: "과학 실험 기포" },
+];
 
 function App() {
   const [config, setConfig] = useState(DEFAULT_CONFIG);
@@ -470,6 +481,83 @@ function App() {
     </div>
   );
 
+  // ─── Background Theme Animation ───
+  const BgAnimation = ({ theme }) => {
+    if (!theme || theme === "none") return (
+      <div style={{ position: "fixed", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 0 }}>
+        {[...Array(6)].map((_, i) => <div key={i} style={{ position: "absolute", width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.12)", left: `${15 + i * 15}%`, top: "-10%", animation: `floatDown ${8 + i * 2}s linear infinite`, animationDelay: `${i * 1.5}s` }} />)}
+      </div>
+    );
+
+    if (theme === "space") return (
+      <div style={{ position: "fixed", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 0 }}>
+        {/* Static twinkling stars */}
+        {[...Array(40)].map((_, i) => <div key={`s${i}`} style={{ position: "absolute", width: i % 3 === 0 ? 3 : 2, height: i % 3 === 0 ? 3 : 2, borderRadius: "50%", background: "#fff", left: `${(i * 37 + 13) % 100}%`, top: `${(i * 23 + 7) % 100}%`, opacity: 0.15 + (i % 5) * 0.15, animation: `twinkle ${2 + (i % 4)}s ease-in-out infinite`, animationDelay: `${(i * 0.3) % 3}s` }} />)}
+        {/* Shooting stars */}
+        {[...Array(3)].map((_, i) => <div key={`sh${i}`} style={{ position: "absolute", width: 60 + i * 20, height: 2, background: `linear-gradient(90deg, transparent, rgba(255,255,255,${0.6 - i * 0.15}), transparent)`, top: `${15 + i * 25}%`, left: "-20%", borderRadius: 2, animation: `shootStar ${4 + i * 2}s linear infinite`, animationDelay: `${i * 3}s`, transform: "rotate(-15deg)" }} />)}
+        {/* Nebula glow */}
+        <div style={{ position: "absolute", width: "60vw", height: "60vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(100,100,255,0.08) 0%, transparent 70%)", top: "10%", right: "-20%", animation: "nebulaPulse 8s ease-in-out infinite" }} />
+        <div style={{ position: "absolute", width: "40vw", height: "40vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(200,100,255,0.06) 0%, transparent 70%)", bottom: "20%", left: "-10%", animation: "nebulaPulse 10s ease-in-out infinite", animationDelay: "3s" }} />
+      </div>
+    );
+
+    if (theme === "atom") return (
+      <div style={{ position: "fixed", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 0 }}>
+        {/* Orbit rings */}
+        {[...Array(3)].map((_, i) => <div key={`o${i}`} style={{ position: "absolute", width: 200 + i * 100, height: 200 + i * 100, borderRadius: "50%", border: `1px solid rgba(255,255,255,${0.06 + i * 0.02})`, left: "50%", top: "40%", transform: "translate(-50%, -50%)", animation: `orbitSpin ${10 + i * 5}s linear infinite ${i % 2 === 0 ? "" : "reverse"}` }} />)}
+        {/* Electrons */}
+        {[...Array(6)].map((_, i) => <div key={`e${i}`} style={{ position: "absolute", width: 8, height: 8, borderRadius: "50%", background: `rgba(${100 + i * 30},${200 - i * 20},255,${0.3 + (i % 3) * 0.15})`, boxShadow: `0 0 ${8 + i * 3}px rgba(100,200,255,0.3)`, animation: `electronFloat ${5 + i * 1.5}s ease-in-out infinite`, left: `${10 + i * 15}%`, top: `${20 + (i * 37) % 60}%`, animationDelay: `${i * 0.8}s` }} />)}
+        {/* Nucleus glow */}
+        <div style={{ position: "absolute", width: 16, height: 16, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,200,100,0.25), transparent)", left: "50%", top: "40%", transform: "translate(-50%,-50%)", boxShadow: "0 0 40px rgba(255,200,100,0.15)" }} />
+      </div>
+    );
+
+    if (theme === "dna") return (
+      <div style={{ position: "fixed", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 0 }}>
+        {/* Double helix dots */}
+        {[...Array(16)].map((_, i) => {
+          const y = i * 7;
+          const phase = i * 0.6;
+          return [
+            <div key={`a${i}`} style={{ position: "absolute", width: 6, height: 6, borderRadius: "50%", background: `rgba(100,220,255,${0.2 + (i % 3) * 0.1})`, left: `${48 + Math.sin(phase) * 12}%`, top: `${y}%`, animation: `helixWave ${6}s ease-in-out infinite`, animationDelay: `${i * 0.2}s`, boxShadow: "0 0 6px rgba(100,220,255,0.2)" }} />,
+            <div key={`b${i}`} style={{ position: "absolute", width: 6, height: 6, borderRadius: "50%", background: `rgba(255,150,200,${0.2 + (i % 3) * 0.1})`, left: `${52 - Math.sin(phase) * 12}%`, top: `${y}%`, animation: `helixWave ${6}s ease-in-out infinite`, animationDelay: `${i * 0.2 + 0.3}s`, boxShadow: "0 0 6px rgba(255,150,200,0.2)" }} />,
+            i % 2 === 0 && <div key={`c${i}`} style={{ position: "absolute", height: 1, background: `rgba(255,255,255,0.06)`, left: `${48 + Math.sin(phase) * 12}%`, width: `${Math.abs(Math.sin(phase)) * 8}%`, top: `${y + 0.3}%` }} />
+          ];
+        })}
+      </div>
+    );
+
+    if (theme === "circuit") return (
+      <div style={{ position: "fixed", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 0 }}>
+        {/* Circuit lines */}
+        {[...Array(8)].map((_, i) => <div key={`cl${i}`} style={{ position: "absolute", background: `rgba(0,255,200,${0.04 + (i % 3) * 0.02})`, ...(i % 2 === 0 ? { width: 1, height: `${30 + i * 10}%`, left: `${12 + i * 11}%`, top: `${(i * 17) % 40}%` } : { height: 1, width: `${25 + i * 8}%`, top: `${15 + i * 10}%`, left: `${(i * 13) % 50}%` }) }} />)}
+        {/* Node dots */}
+        {[...Array(10)].map((_, i) => <div key={`nd${i}`} style={{ position: "absolute", width: 5, height: 5, borderRadius: "50%", background: `rgba(0,255,200,${0.15 + (i % 3) * 0.1})`, boxShadow: `0 0 8px rgba(0,255,200,0.2)`, left: `${(i * 31 + 10) % 90}%`, top: `${(i * 23 + 5) % 90}%`, animation: `circuitPulse ${2 + i % 3}s ease-in-out infinite`, animationDelay: `${i * 0.4}s` }} />)}
+        {/* Data flow */}
+        {[...Array(4)].map((_, i) => <div key={`df${i}`} style={{ position: "absolute", width: 3, height: 3, borderRadius: "50%", background: "rgba(0,255,200,0.5)", animation: `dataFlow${i % 2 === 0 ? "V" : "H"} ${3 + i}s linear infinite`, animationDelay: `${i * 1.5}s`, left: `${12 + i * 22}%`, top: `${15 + i * 10}%` }} />)}
+      </div>
+    );
+
+    if (theme === "rocket") return (
+      <div style={{ position: "fixed", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 0 }}>
+        {/* Speed stars streaming upward */}
+        {[...Array(20)].map((_, i) => <div key={`rs${i}`} style={{ position: "absolute", width: 2, height: 8 + (i % 3) * 6, background: `linear-gradient(to top, transparent, rgba(255,255,255,${0.1 + (i % 4) * 0.08}))`, borderRadius: 2, left: `${(i * 19 + 5) % 100}%`, bottom: "-5%", animation: `rocketStar ${2 + (i % 4) * 0.5}s linear infinite`, animationDelay: `${(i * 0.3) % 3}s` }} />)}
+        {/* Exhaust glow */}
+        <div style={{ position: "absolute", width: "30vw", height: "30vw", borderRadius: "50%", background: "radial-gradient(circle, rgba(255,150,50,0.08) 0%, transparent 70%)", bottom: "-10%", left: "35%", animation: "nebulaPulse 4s ease-in-out infinite" }} />
+        {/* Small stars */}
+        {[...Array(15)].map((_, i) => <div key={`ss${i}`} style={{ position: "absolute", width: 2, height: 2, borderRadius: "50%", background: "#fff", opacity: 0.1 + (i % 5) * 0.1, left: `${(i * 29 + 3) % 100}%`, top: `${(i * 17 + 5) % 100}%`, animation: `twinkle ${2 + i % 3}s ease-in-out infinite`, animationDelay: `${i * 0.4}s` }} />)}
+      </div>
+    );
+
+    if (theme === "bubble") return (
+      <div style={{ position: "fixed", inset: 0, overflow: "hidden", pointerEvents: "none", zIndex: 0 }}>
+        {[...Array(12)].map((_, i) => <div key={`bb${i}`} style={{ position: "absolute", width: 12 + (i % 4) * 8, height: 12 + (i % 4) * 8, borderRadius: "50%", border: `1px solid rgba(255,255,255,${0.06 + (i % 3) * 0.04})`, background: `radial-gradient(circle at 35% 35%, rgba(255,255,255,${0.06 + (i % 3) * 0.03}), transparent)`, left: `${(i * 23 + 5) % 95}%`, bottom: "-10%", animation: `bubbleUp ${6 + (i % 5) * 2}s ease-in infinite`, animationDelay: `${(i * 0.7) % 5}s` }} />)}
+      </div>
+    );
+
+    return null;
+  };
+
   // ─── Stamp Visual ───
   const StampIcon = ({ loc, size = 48, stamped = false }) => {
     if (stamped && config.stampImage) return <img src={config.stampImage} alt="" style={{ width: size, height: size, borderRadius: size * 0.25, objectFit: "cover" }} />;
@@ -521,10 +609,8 @@ function App() {
       <AdminButton />
       {showAdmin && !adminAuth && <AdminPwModal />}
 
-      {/* Animated particles */}
-      <div style={{ position: "fixed", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
-        {[...Array(6)].map((_, i) => <div key={i} style={{ position: "absolute", width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.15)", left: `${15 + i * 15}%`, top: "-10%", animation: `floatDown ${8 + i * 2}s linear infinite`, animationDelay: `${i * 1.5}s` }} />)}
-      </div>
+      {/* Background theme */}
+      <BgAnimation theme={config.bgTheme} />
 
       {/* Hero */}
       {config.heroImage ? (
@@ -617,6 +703,17 @@ function App() {
         @keyframes heroFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
         @keyframes bounceIn { 0% { transform:scale(0.3);opacity:0 } 50% { transform:scale(1.05) } 70% { transform:scale(0.95) } 100% { transform:scale(1);opacity:1 } }
         @keyframes toastIn { from { transform: translateX(-50%) translateY(-20px); opacity:0; } to { transform: translateX(-50%) translateY(0); opacity:1; } }
+        @keyframes twinkle { 0%,100% { opacity: 0.15; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.4); } }
+        @keyframes shootStar { 0% { left: -20%; opacity: 0; } 5% { opacity: 1; } 30% { left: 120%; opacity: 0; } 100% { left: 120%; opacity: 0; } }
+        @keyframes nebulaPulse { 0%,100% { opacity: 0.6; transform: scale(1); } 50% { opacity: 1; transform: scale(1.1); } }
+        @keyframes orbitSpin { from { transform: translate(-50%,-50%) rotate(0deg); } to { transform: translate(-50%,-50%) rotate(360deg); } }
+        @keyframes electronFloat { 0%,100% { transform: translateY(0) translateX(0); } 25% { transform: translateY(-15px) translateX(10px); } 50% { transform: translateY(-5px) translateX(-8px); } 75% { transform: translateY(-20px) translateX(5px); } }
+        @keyframes helixWave { 0%,100% { transform: translateY(0); opacity: 0.25; } 50% { transform: translateY(-8px); opacity: 0.5; } }
+        @keyframes circuitPulse { 0%,100% { opacity: 0.15; box-shadow: 0 0 4px rgba(0,255,200,0.1); } 50% { opacity: 0.6; box-shadow: 0 0 12px rgba(0,255,200,0.4); } }
+        @keyframes dataFlowV { 0% { transform: translateY(0); opacity: 0; } 10% { opacity: 0.7; } 90% { opacity: 0.7; } 100% { transform: translateY(60vh); opacity: 0; } }
+        @keyframes dataFlowH { 0% { transform: translateX(0); opacity: 0; } 10% { opacity: 0.7; } 90% { opacity: 0.7; } 100% { transform: translateX(50vw); opacity: 0; } }
+        @keyframes rocketStar { 0% { transform: translateY(0); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(-120vh); opacity: 0; } }
+        @keyframes bubbleUp { 0% { transform: translateY(0) scale(0.5); opacity: 0; } 10% { opacity: 1; } 80% { opacity: 0.6; } 100% { transform: translateY(-110vh) scale(1.2); opacity: 0; } }
       `}</style>
     </div>
   );
@@ -708,6 +805,25 @@ function App() {
         {/* ─── DESIGN ─── */}
         {adminTab === "design" && (<div>
           <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 14 }}>🎨 디자인 커스터마이징</h3>
+
+          {/* Background Theme */}
+          <div style={{ background: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+            <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: "#334155" }}>🌌 배경 스킨</h4>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {BG_THEMES.map(t => (
+                <button key={t.id} onClick={() => saveConfig({ ...config, bgTheme: t.id })} style={{
+                  padding: "12px 10px", borderRadius: 12, cursor: "pointer", textAlign: "left",
+                  border: config.bgTheme === t.id ? `2px solid ${config.primaryColor}` : "2px solid #e2e8f0",
+                  background: config.bgTheme === t.id ? `${config.primaryColor}08` : "#f8fafc",
+                  transition: "all 0.2s"
+                }}>
+                  <div style={{ fontSize: 22, marginBottom: 4 }}>{t.icon}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: config.bgTheme === t.id ? config.primaryColor : "#334155" }}>{t.name}</div>
+                  <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>{t.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div style={{ background: "#fff", borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
             <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, color: "#334155" }}>🖼 이미지 관리</h4>
@@ -1037,11 +1153,12 @@ function App() {
       )}
 
       {/* ─── HEADER ─── */}
-      <div style={{ background: `linear-gradient(160deg, ${config.primaryColor} 0%, ${config.secondaryColor} 100%)`, padding: "22px 20px 52px", textAlign: "center", position: "relative" }}>
-        {config.heroImage && <img src={config.heroImage} alt="" style={{ width: 50, height: 50, objectFit: "contain", position: "absolute", top: 12, left: 16, filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.2))" }} />}
-        <h1 style={{ fontFamily: config.titleFont, fontSize: 22, color: "#fff", margin: 0, textShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>{config.festivalName}</h1>
-        <p style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, marginTop: 3, letterSpacing: 2 }}>{config.subtitle}</p>
-        <p style={{ color: "rgba(255,255,255,0.9)", fontSize: 13, marginTop: 8 }}>👋 <strong>{user?.name}</strong>님, 환영합니다!</p>
+      <div style={{ background: `linear-gradient(160deg, ${config.primaryColor} 0%, ${config.secondaryColor} 100%)`, padding: "22px 20px 52px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+        <BgAnimation theme={config.bgTheme} />
+        {config.heroImage && <img src={config.heroImage} alt="" style={{ width: 50, height: 50, objectFit: "contain", position: "absolute", top: 12, left: 16, filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.2))", zIndex: 2 }} />}
+        <h1 style={{ fontFamily: config.titleFont, fontSize: 22, color: "#fff", margin: 0, textShadow: "0 2px 8px rgba(0,0,0,0.2)", position: "relative", zIndex: 2 }}>{config.festivalName}</h1>
+        <p style={{ color: "rgba(255,255,255,0.8)", fontSize: 12, marginTop: 3, letterSpacing: 2, position: "relative", zIndex: 2 }}>{config.subtitle}</p>
+        <p style={{ color: "rgba(255,255,255,0.9)", fontSize: 13, marginTop: 8, position: "relative", zIndex: 2 }}>👋 <strong>{user?.name}</strong>님, 환영합니다!</p>
       </div>
 
       {/* ─── PROGRESS CARD ─── */}
@@ -1114,6 +1231,18 @@ function App() {
         @keyframes slideUp { from { transform:translateY(40px);opacity:0 } to { transform:translateY(0);opacity:1 } }
         @keyframes scanLine { 0% { top:10% } 50% { top:85% } 100% { top:10% } }
         @keyframes toastIn { from { transform: translateX(-50%) translateY(-20px); opacity:0; } to { transform: translateX(-50%) translateY(0); opacity:1; } }
+        @keyframes twinkle { 0%,100% { opacity: 0.15; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.4); } }
+        @keyframes shootStar { 0% { left: -20%; opacity: 0; } 5% { opacity: 1; } 30% { left: 120%; opacity: 0; } 100% { left: 120%; opacity: 0; } }
+        @keyframes nebulaPulse { 0%,100% { opacity: 0.6; transform: scale(1); } 50% { opacity: 1; transform: scale(1.1); } }
+        @keyframes orbitSpin { from { transform: translate(-50%,-50%) rotate(0deg); } to { transform: translate(-50%,-50%) rotate(360deg); } }
+        @keyframes electronFloat { 0%,100% { transform: translateY(0) translateX(0); } 25% { transform: translateY(-15px) translateX(10px); } 50% { transform: translateY(-5px) translateX(-8px); } 75% { transform: translateY(-20px) translateX(5px); } }
+        @keyframes helixWave { 0%,100% { transform: translateY(0); opacity: 0.25; } 50% { transform: translateY(-8px); opacity: 0.5; } }
+        @keyframes circuitPulse { 0%,100% { opacity: 0.15; box-shadow: 0 0 4px rgba(0,255,200,0.1); } 50% { opacity: 0.6; box-shadow: 0 0 12px rgba(0,255,200,0.4); } }
+        @keyframes dataFlowV { 0% { transform: translateY(0); opacity: 0; } 10% { opacity: 0.7; } 90% { opacity: 0.7; } 100% { transform: translateY(60vh); opacity: 0; } }
+        @keyframes dataFlowH { 0% { transform: translateX(0); opacity: 0; } 10% { opacity: 0.7; } 90% { opacity: 0.7; } 100% { transform: translateX(50vw); opacity: 0; } }
+        @keyframes rocketStar { 0% { transform: translateY(0); opacity: 0; } 10% { opacity: 1; } 100% { transform: translateY(-120vh); opacity: 0; } }
+        @keyframes bubbleUp { 0% { transform: translateY(0) scale(0.5); opacity: 0; } 10% { opacity: 1; } 80% { opacity: 0.6; } 100% { transform: translateY(-110vh) scale(1.2); opacity: 0; } }
+        @keyframes floatDown { 0% { transform: translateY(-10vh) rotate(0deg); opacity:0; } 10% { opacity:1; } 90% { opacity:1; } 100% { transform: translateY(110vh) rotate(360deg); opacity:0; } }
         * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
         input,textarea,select { font-family:inherit; }
         .dotpulse { animation:blink 1.4s infinite; }
