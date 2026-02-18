@@ -44,7 +44,7 @@ try{if(typeof firebase!=="undefined"&&firebase.initializeApp){
 firebase.initializeApp({apiKey:"AIzaSyDf0FS-HBKDErSfUzc8cLP-NgnuOPgdpl4",authDomain:"treasure-hunt-cc9bb.firebaseapp.com",projectId:"treasure-hunt-cc9bb",storageBucket:"treasure-hunt-cc9bb.firebasestorage.app",messagingSenderId:"418214737669",appId:"1:418214737669:web:cde3ea516eb54f722e296c"});
 db=firebase.firestore();console.log("Firebase connected!")}}catch(e){console.warn("Firebase unavailable, using local mode",e)}
 
-const el=React.createElement,{useState,useEffect,useRef,useCallback}=React;
+const el=React.createElement,{useState,useEffect,useRef}=React;
 
 const DEF={festivalName:"2026 대전 사이언스 페스티벌",subtitle:"모바일 AI 스탬프 투어",
 primaryColor:"#0A2463",secondaryColor:"#00B4D8",accentColor:"#FB8500",bgColor:"#F0F7FF",textColor:"#1B1B2F",cardBg:"#FFFFFF",
@@ -93,15 +93,7 @@ const[toast,setToast]=useState(null);
 const[dirty,setDirty]=useState(false);
 const[showResume,setShowResume]=useState(!!savedU);
 const[fbOk,setFbOk]=useState(!!db);
-const[scanDebug,setScanDebug]=useState("");
 const chatEnd=useRef(null),vidRef=useRef(null),canRef=useRef(null),strRef=useRef(null),animRef=useRef(null),ttimer=useRef(null);
-const scanActiveRef=useRef(false);
-const stampsRef=useRef(savedS);
-const configRef=useRef(LS("config")||DEF);
-
-// Keep refs in sync with state
-useEffect(()=>{stampsRef.current=stamps},[stamps]);
-useEffect(()=>{configRef.current=C},[C]);
 
 // ─── Firebase: listen participants (admin) ───
 useEffect(()=>{
@@ -147,184 +139,21 @@ const doResume=()=>{setScr("tour");setShowResume(false);showT("👋 "+savedU.nam
 const doNew=()=>{setShowResume(false);setUser(null);LS("user",null);LS("stamps",null);LS("docId",null);setStamps({});setDocId(null)};
 const doLogout=()=>{setUser(null);setStamps({});setDocId(null);LS("user",null);LS("stamps",null);LS("docId",null);setScr("register");setShowResume(false)};
 
-// ─── QR Code Handler (uses refs to avoid stale closure) ───
-const onCode=useCallback((data)=>{
-  const curConfig=configRef.current;
-  const curStamps=stampsRef.current;
-  const loc=curConfig.locations.find(l=>l.code===data);
-  if(loc){
-    if(curStamps[loc.id]){
-      setScanRes({ok:0,msg:'이미 "'+loc.name+'" 스탬프를 수집했습니다!',ic:"🔄"});
-    } else {
-      const ns={...curStamps,[loc.id]:true};
-      setStamps(ns);LS("stamps",ns);fbUpdateStamps(ns);
-      setScanRes({ok:1,msg:'"'+loc.name+'" 스탬프 획득!',ic:"🎉"});
-    }
-  } else {
-    setScanRes({ok:0,msg:"유효하지 않은 QR코드입니다.\n(인식값: "+data.substring(0,30)+")",ic:"❌"});
-  }
-  stopScan();
-},[]);
-
-// ─── Scanner (Fixed for mobile) ───
-const stopScan=useCallback(()=>{
-  scanActiveRef.current=false;
-  if(animRef.current){cancelAnimationFrame(animRef.current);animRef.current=null}
-  if(strRef.current){strRef.current.getTracks().forEach(t=>t.stop());strRef.current=null}
-  setScanning(false);
-},[]);
-
-const doFrame=useCallback(()=>{
-  if(!scanActiveRef.current)return;
-
-  const v=vidRef.current;
-  const c=canRef.current;
-
-  // Wait until all pieces are ready
-  if(!v||!c||!window.jsQR){
-    animRef.current=requestAnimationFrame(doFrame);
-    return;
-  }
-
-  // Video must be playing AND have real dimensions
-  if(v.readyState<v.HAVE_ENOUGH_DATA||v.videoWidth===0||v.videoHeight===0){
-    animRef.current=requestAnimationFrame(doFrame);
-    return;
-  }
-
-  // Set canvas to video dimensions
-  if(c.width!==v.videoWidth||c.height!==v.videoHeight){
-    c.width=v.videoWidth;
-    c.height=v.videoHeight;
-  }
-
-  const ctx=c.getContext("2d",{willReadFrequently:true});
-  ctx.drawImage(v,0,0,c.width,c.height);
-
-  try{
-    const imgData=ctx.getImageData(0,0,c.width,c.height);
-    // Use attemptBoth for better recognition on mobile
-    const code=window.jsQR(imgData.data,imgData.width,imgData.height,{inversionAttempts:"attemptBoth"});
-    if(code&&code.data){
-      onCode(code.data);
-      return; // Stop scanning after detection
-    }
-  }catch(e){
-    console.warn("jsQR frame error:",e);
-  }
-
-  animRef.current=requestAnimationFrame(doFrame);
-},[onCode]);
-
-const startScan=useCallback(async()=>{
-  // Reset state
-  setScanRes(null);
-  setCamErr(null);
-  scanActiveRef.current=false;
-  if(animRef.current){cancelAnimationFrame(animRef.current);animRef.current=null}
-  if(strRef.current){strRef.current.getTracks().forEach(t=>t.stop());strRef.current=null}
-
-  // Show scanner UI first
-  setScanning(true);
-
-  // Wait for React to render video/canvas elements
-  await new Promise(r=>setTimeout(r,150));
-
-  // Check jsQR loaded
-  if(!window.jsQR){
-    setCamErr("QR 스캔 라이브러리를 불러오지 못했습니다.\n페이지를 새로고침해주세요.");
-    return;
-  }
-
-  try{
-    const constraints={
-      video:{
-        facingMode:{ideal:"environment"},
-        width:{ideal:1280,min:640},
-        height:{ideal:720,min:480}
-      },
-      audio:false
-    };
-    const stream=await navigator.mediaDevices.getUserMedia(constraints);
-    strRef.current=stream;
-
-    // Wait again to ensure vidRef is mounted
-    await new Promise(r=>setTimeout(r,100));
-
-    if(!vidRef.current){
-      // Last resort wait
-      await new Promise(r=>setTimeout(r,300));
-    }
-
-    if(!vidRef.current){
-      setCamErr("카메라를 초기화할 수 없습니다.\n다시 시도해주세요.");
-      stream.getTracks().forEach(t=>t.stop());
-      strRef.current=null;
-      return;
-    }
-
-    const video=vidRef.current;
-    video.srcObject=stream;
-    video.setAttribute("playsinline","true");
-    video.setAttribute("autoplay","true");
-    video.muted=true;
-
-    // Wait for video metadata to load (critical for mobile!)
-    await new Promise((resolve,reject)=>{
-      // If already has metadata
-      if(video.readyState>=video.HAVE_METADATA&&video.videoWidth>0){
-        resolve();
-        return;
-      }
-      const onMeta=()=>{
-        video.removeEventListener("loadedmetadata",onMeta);
-        video.removeEventListener("error",onErr);
-        clearTimeout(tm);
-        resolve();
-      };
-      const onErr=(e)=>{
-        video.removeEventListener("loadedmetadata",onMeta);
-        video.removeEventListener("error",onErr);
-        clearTimeout(tm);
-        reject(e);
-      };
-      // Timeout fallback
-      const tm=setTimeout(()=>{
-        video.removeEventListener("loadedmetadata",onMeta);
-        video.removeEventListener("error",onErr);
-        resolve(); // try anyway
-      },3000);
-      video.addEventListener("loadedmetadata",onMeta);
-      video.addEventListener("error",onErr);
-    });
-
-    await video.play();
-
-    // Extra wait for first frames to be available (some mobile browsers need this)
-    await new Promise(r=>setTimeout(r,300));
-
-    // Start scanning loop
-    scanActiveRef.current=true;
-    animRef.current=requestAnimationFrame(doFrame);
-
-    console.log("Scanner started: "+video.videoWidth+"x"+video.videoHeight);
-
-  }catch(er){
-    console.error("Camera error:",er);
-    if(er.name==="NotAllowedError"||er.name==="PermissionDeniedError"){
-      setCamErr("카메라 접근이 거부되었습니다.\n설정에서 카메라 권한을 허용해주세요.\n\n💡 아이폰: 설정 > Safari > 카메라\n💡 안드로이드: 브라우저 > 사이트 설정 > 카메라");
-    }else if(er.name==="NotFoundError"){
-      setCamErr("카메라를 찾을 수 없습니다.\n카메라가 있는 기기에서 시도해주세요.");
-    }else if(er.name==="NotReadableError"){
-      setCamErr("카메라가 다른 앱에서 사용 중입니다.\n다른 앱을 닫고 다시 시도해주세요.");
-    }else{
-      setCamErr("카메라를 시작할 수 없습니다.\n\n⚠️ https에서만 카메라가 작동합니다.\n(에러: "+er.name+")");
-    }
-  }
-},[doFrame]);
-
-// Cleanup on unmount
-useEffect(()=>{return()=>{scanActiveRef.current=false;if(animRef.current)cancelAnimationFrame(animRef.current);if(strRef.current)strRef.current.getTracks().forEach(t=>t.stop())}},[]);
+// ─── Scanner ───
+const startScan=async()=>{setScanning(true);setCamErr(null);setScanRes(null);
+try{const s=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment",width:{ideal:1280},height:{ideal:720}}});
+strRef.current=s;if(vidRef.current){vidRef.current.srcObject=s;vidRef.current.setAttribute("playsinline","true");await vidRef.current.play();doFrame()}}
+catch(er){setCamErr(er.name==="NotAllowedError"?"카메라 접근이 거부되었습니다.\n설정에서 카메라 권한을 허용해주세요.\n\n💡 아이폰: 설정 > Safari > 카메라\n💡 안드로이드: 브라우저 > 사이트 설정 > 카메라":"카메라를 시작할 수 없습니다.\n\n⚠️ https에서만 카메라가 작동합니다.")}};
+const doFrame=()=>{if(!vidRef.current||!canRef.current||!window.jsQR){animRef.current=requestAnimationFrame(doFrame);return}
+const v=vidRef.current,c=canRef.current;if(v.readyState!==v.HAVE_ENOUGH_DATA){animRef.current=requestAnimationFrame(doFrame);return}
+c.width=v.videoWidth;c.height=v.videoHeight;const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(v,0,0,c.width,c.height);
+const img=ctx.getImageData(0,0,c.width,c.height);const code=window.jsQR(img.data,img.width,img.height,{inversionAttempts:"dontInvert"});
+if(code?.data){onCode(code.data);return}animRef.current=requestAnimationFrame(doFrame)};
+const onCode=(data)=>{const loc=C.locations.find(l=>l.code===data);
+if(loc){if(stamps[loc.id])setScanRes({ok:0,msg:'이미 "'+loc.name+'" 스탬프를 수집했습니다!',ic:"🔄"});
+else{const ns={...stamps,[loc.id]:true};setStamps(ns);LS("stamps",ns);fbUpdateStamps(ns);setScanRes({ok:1,msg:'"'+loc.name+'" 스탬프 획득!',ic:"🎉"})}}
+else setScanRes({ok:0,msg:"유효하지 않은 QR코드입니다.",ic:"❌"});stopScan()};
+const stopScan=()=>{if(animRef.current)cancelAnimationFrame(animRef.current);if(strRef.current)strRef.current.getTracks().forEach(t=>t.stop());strRef.current=null;setScanning(false)};
 
 // ─── AI Chat ───
 const sendChat=async()=>{if(!chatIn.trim()||chatLoad)return;const m=chatIn.trim();setChatIn("");
@@ -412,6 +241,7 @@ el("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginB
 el("div",{style:{fontSize:24,marginBottom:4}},s.ic),
 el("div",{style:{fontSize:26,fontWeight:900,fontFamily:C.titleFont}},s.v),
 el("div",{style:{fontSize:10,opacity:.8,marginTop:2}},s.n)))),
+// Location stats
 el("div",{style:{background:"#fff",borderRadius:14,padding:16,marginBottom:12}},
 el("h4",{style:{fontSize:13,fontWeight:700,marginBottom:12}},"📍 장소별 방문 현황"),
 C.locations.map(loc=>{const vis=fbParts.filter(p=>p.stamps&&p.stamps[loc.id]).length;const pct=totalP>0?Math.round(vis/totalP*100):0;
@@ -421,6 +251,7 @@ el("span",null,loc.icon+" "+loc.name),
 el("span",{style:{fontWeight:700,color:C.primaryColor}},vis+"명 ("+pct+"%)")),
 el("div",{style:{height:8,background:"#e8edf2",borderRadius:4,overflow:"hidden"}},
 el("div",{style:{height:"100%",width:pct+"%",background:"linear-gradient(90deg,"+C.primaryColor+","+C.accentColor+")",borderRadius:4,transition:"width .5s"}})))})),
+// Recent activity
 el("div",{style:{background:"#fff",borderRadius:14,padding:16}},
 el("h4",{style:{fontSize:13,fontWeight:700,marginBottom:12}},"🕐 최근 참가자"),
 fbParts.slice(0,10).map((p,i)=>{const sc=p.stamps?Object.keys(p.stamps).length:0;
@@ -468,7 +299,7 @@ p.completed?el("div",{style:{fontSize:10,color:"#065f46",fontWeight:700,backgrou
 return el("div",{style:{fontFamily:C.fontFamily,background:C.bgColor,minHeight:"100dvh",paddingBottom:90}},
 Toast,AdminBtn,showAdm&&!admAuth&&el(PwModal),
 showComp&&el("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",zIndex:1100,display:"flex",alignItems:"center",justifyContent:"center",padding:20},onClick:()=>setShowComp(false)},el("div",{onClick:e=>e.stopPropagation(),style:{background:"#fff",borderRadius:24,padding:"36px 28px",width:"100%",maxWidth:340,textAlign:"center",animation:"bounceIn .5s"}},el("div",{style:{fontSize:56,marginBottom:8}},"🏆"),el("h2",{style:{fontFamily:C.titleFont,fontSize:22,color:C.primaryColor,margin:"0 0 10px"}},"미션 완료!"),el("p",{style:{fontSize:14,color:"#475569",lineHeight:1.8,whiteSpace:"pre-line"}},C.completionMessage),el("div",{style:{marginTop:16,padding:14,background:C.primaryColor+"0a",borderRadius:12,fontSize:13,color:C.primaryColor,fontWeight:600}},"📋 "+user?.name+" | 📱 "+user?.phone),el("button",{onClick:()=>setShowComp(false),style:{marginTop:18,padding:"12px 40px",borderRadius:12,border:"none",background:C.accentColor,color:"#fff",fontSize:15,fontWeight:800}},"확인"))),
-(scanning||scanRes)&&el("div",{style:{position:"fixed",inset:0,background:"#000",zIndex:1100,display:"flex",flexDirection:"column"}},el("div",{style:{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(0,0,0,.8)",zIndex:10}},el("span",{style:{color:"#fff",fontSize:15,fontWeight:700}},"📷 QR 스캔"),el("button",{onClick:()=>{stopScan();setScanRes(null)},style:{background:"rgba(255,255,255,.15)",border:"none",color:"#fff",padding:"8px 16px",borderRadius:8,fontSize:13}},"✕ 닫기")),scanRes?el("div",{style:{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:30}},el("div",{style:{background:"#fff",borderRadius:24,padding:"40px 28px",width:"100%",maxWidth:340,textAlign:"center",animation:"bounceIn .4s"}},el("div",{style:{fontSize:56,marginBottom:8}},scanRes.ic),el("h3",{style:{fontSize:18,fontWeight:800,color:scanRes.ok?C.primaryColor:"#dc2626",margin:"0 0 8px"}},scanRes.ok?"스탬프 획득!":"알림"),el("p",{style:{fontSize:15,color:"#475569",lineHeight:1.6,whiteSpace:"pre-line"}},scanRes.msg),el("div",{style:{display:"flex",gap:10,marginTop:20}},el("button",{onClick:()=>{setScanRes(null);startScan()},style:{flex:1,padding:12,borderRadius:10,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:14}},"계속 스캔"),el("button",{onClick:()=>setScanRes(null),style:{flex:1,padding:12,borderRadius:10,border:"none",background:C.primaryColor,color:"#fff",fontSize:14,fontWeight:700}},"돌아가기")))):el("div",{style:{flex:1,position:"relative",display:"flex",alignItems:"center",justifyContent:"center"}},el("video",{ref:vidRef,style:{width:"100%",height:"100%",objectFit:"cover"},playsInline:true,autoPlay:true,muted:true}),el("canvas",{ref:canRef,style:{display:"none"}}),el("div",{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}},el("div",{style:{width:240,height:240,position:"relative"}},[[0,0,"Top","Left"],[0,1,"Top","Right"],[1,0,"Bottom","Left"],[1,1,"Bottom","Right"]].map(([r,c,v,hr])=>{const s={position:"absolute",width:36,height:36,borderStyle:"solid",borderColor:C.secondaryColor,borderWidth:0};s[v.toLowerCase()]=-2;s[hr.toLowerCase()]=-2;s["border"+v+"Width"]=4;s["border"+hr+"Width"]=4;s["border"+v+hr+"Radius"]=12;return el("div",{key:r+""+c,style:s})}),el("div",{style:{position:"absolute",left:10,right:10,height:3,background:"linear-gradient(90deg,transparent,"+C.secondaryColor+",transparent)",borderRadius:2,animation:"scanLine 2s ease-in-out infinite"}}))),camErr&&el("div",{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.9)",padding:30}},el("div",{style:{textAlign:"center",color:"#fff"}},el("div",{style:{fontSize:48,marginBottom:12}},"📷"),el("p",{style:{fontSize:14,whiteSpace:"pre-line",lineHeight:1.8}},camErr),el("button",{onClick:startScan,style:{marginTop:20,padding:"12px 30px",borderRadius:10,border:"none",background:C.primaryColor,color:"#fff",fontSize:14,fontWeight:700}},"다시 시도"))),el("div",{style:{position:"absolute",bottom:30,left:0,right:0,textAlign:"center"}},el("p",{style:{color:"rgba(255,255,255,.8)",fontSize:13}},"QR코드를 사각형 안에 맞춰주세요")))),
+(scanning||scanRes)&&el("div",{style:{position:"fixed",inset:0,background:"#000",zIndex:1100,display:"flex",flexDirection:"column"}},el("div",{style:{padding:"14px 20px",display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(0,0,0,.8)",zIndex:10}},el("span",{style:{color:"#fff",fontSize:15,fontWeight:700}},"📷 QR 스캔"),el("button",{onClick:()=>{stopScan();setScanRes(null)},style:{background:"rgba(255,255,255,.15)",border:"none",color:"#fff",padding:"8px 16px",borderRadius:8,fontSize:13}},"✕ 닫기")),scanRes?el("div",{style:{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:30}},el("div",{style:{background:"#fff",borderRadius:24,padding:"40px 28px",width:"100%",maxWidth:340,textAlign:"center",animation:"bounceIn .4s"}},el("div",{style:{fontSize:56,marginBottom:8}},scanRes.ic),el("h3",{style:{fontSize:18,fontWeight:800,color:scanRes.ok?C.primaryColor:"#dc2626",margin:"0 0 8px"}},scanRes.ok?"스탬프 획득!":"알림"),el("p",{style:{fontSize:15,color:"#475569",lineHeight:1.6,whiteSpace:"pre-line"}},scanRes.msg),el("div",{style:{display:"flex",gap:10,marginTop:20}},el("button",{onClick:()=>{setScanRes(null);startScan()},style:{flex:1,padding:12,borderRadius:10,border:"1px solid #e2e8f0",background:"#f8fafc",fontSize:14}},"계속 스캔"),el("button",{onClick:()=>setScanRes(null),style:{flex:1,padding:12,borderRadius:10,border:"none",background:C.primaryColor,color:"#fff",fontSize:14,fontWeight:700}},"돌아가기")))):el("div",{style:{flex:1,position:"relative",display:"flex",alignItems:"center",justifyContent:"center"}},el("video",{ref:vidRef,style:{width:"100%",height:"100%",objectFit:"cover"},playsInline:true,muted:true}),el("canvas",{ref:canRef,style:{display:"none"}}),el("div",{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}},el("div",{style:{width:240,height:240,position:"relative"}},[[0,0,"Top","Left"],[0,1,"Top","Right"],[1,0,"Bottom","Left"],[1,1,"Bottom","Right"]].map(([r,c,v,hr])=>{const s={position:"absolute",width:36,height:36,borderStyle:"solid",borderColor:C.secondaryColor,borderWidth:0};s[v.toLowerCase()]=-2;s[hr.toLowerCase()]=-2;s["border"+v+"Width"]=4;s["border"+hr+"Width"]=4;s["border"+v+hr+"Radius"]=12;return el("div",{key:r+""+c,style:s})}),el("div",{style:{position:"absolute",left:10,right:10,height:3,background:"linear-gradient(90deg,transparent,"+C.secondaryColor+",transparent)",borderRadius:2,animation:"scanLine 2s ease-in-out infinite"}}))),camErr&&el("div",{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.9)",padding:30}},el("div",{style:{textAlign:"center",color:"#fff"}},el("div",{style:{fontSize:48,marginBottom:12}},"📷"),el("p",{style:{fontSize:14,whiteSpace:"pre-line",lineHeight:1.8}},camErr),el("button",{onClick:startScan,style:{marginTop:20,padding:"12px 30px",borderRadius:10,border:"none",background:C.primaryColor,color:"#fff",fontSize:14,fontWeight:700}},"다시 시도"))),el("div",{style:{position:"absolute",bottom:30,left:0,right:0,textAlign:"center"}},el("p",{style:{color:"rgba(255,255,255,.8)",fontSize:13}},"QR코드를 사각형 안에 맞춰주세요")))),
 showMap&&el("div",{style:{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",zIndex:1050,display:"flex",alignItems:"center",justifyContent:"center",padding:16},onClick:()=>setShowMap(false)},el("div",{onClick:e=>e.stopPropagation(),style:{background:"#fff",borderRadius:20,width:"100%",maxWidth:420,maxHeight:"90vh",overflow:"hidden",display:"flex",flexDirection:"column",animation:"slideUp .3s"}},el("div",{style:{padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:"1px solid #f1f5f9",flexShrink:0}},el("span",{style:{fontWeight:800,fontSize:15}},"🗺 안내 지도"),el("button",{onClick:()=>setShowMap(false),style:{width:32,height:32,borderRadius:"50%",border:"none",background:"#f1f5f9",fontSize:16,display:"flex",alignItems:"center",justifyContent:"center"}},"✕")),el("div",{style:{flex:1,overflow:"auto",padding:12}},C.mapImage?el("img",{src:C.mapImage,style:{width:"100%",borderRadius:12}}):el("div",{style:{padding:"60px 20px",textAlign:"center",color:"#94a3b8"}},el("div",{style:{fontSize:48}},"🗺"),el("p",{style:{fontSize:14,marginTop:8}},"지도가 등록되지 않았습니다")),el("div",{style:{marginTop:12}},C.locations.map((loc,i)=>el("div",{key:loc.id,style:{display:"flex",gap:10,alignItems:"center",padding:"10px 6px",borderBottom:"1px solid #f8fafc"}},el("div",{style:{width:28,height:28,borderRadius:"50%",background:stamps[loc.id]?C.accentColor:"#e2e8f0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:stamps[loc.id]?"#fff":"#64748b",fontWeight:700,flexShrink:0}},stamps[loc.id]?"✓":i+1),el("div",null,el("div",{style:{fontSize:13,fontWeight:600}},loc.icon+" "+loc.name)))))))),
 scr==="chat"&&el("div",{style:{position:"fixed",inset:0,background:C.bgColor,zIndex:900,display:"flex",flexDirection:"column"}},el("div",{style:{background:"linear-gradient(135deg,"+C.primaryColor+","+C.secondaryColor+")",color:"#fff",padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}},el("div",{style:{display:"flex",alignItems:"center",gap:10}},el("div",{style:{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}},"🤖"),el("div",null,el("div",{style:{fontWeight:700,fontSize:14}},"AI 안내 매니저"))),el("button",{onClick:()=>setScr("tour"),style:{background:"rgba(255,255,255,.15)",border:"none",color:"#fff",padding:"7px 14px",borderRadius:8,fontSize:12}},"✕")),el("div",{style:{flex:1,overflow:"auto",padding:14,display:"flex",flexDirection:"column",gap:10}},msgs.length===0&&el("div",{style:{textAlign:"center",padding:"32px 16px",color:"#94a3b8"}},el("div",{style:{fontSize:44,marginBottom:8}},"🤖"),el("p",{style:{fontSize:14,fontWeight:600,color:"#475569"}},"무엇이든 물어보세요!"),!C.apiKey&&el("div",{style:{padding:12,background:"#fef3c7",borderRadius:10,fontSize:12,color:"#92400e",marginTop:12,marginBottom:12}},"⚠️ AI가 설정되지 않았습니다"),["축제 일정이 어떻게 되나요?","스탬프 투어 참여 방법","주차장이 어디에 있나요?"].map(q=>el("button",{key:q,onClick:()=>setChatIn(q),style:{display:"block",width:"100%",padding:"10px 14px",marginBottom:8,borderRadius:12,border:"1px solid "+C.primaryColor+"22",background:C.primaryColor+"06",color:C.primaryColor,fontSize:13,textAlign:"left"}},"💬 "+q))),msgs.map((m,i)=>el("div",{key:i,style:{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",gap:8}},m.role!=="user"&&el("div",{style:{width:30,height:30,borderRadius:"50%",background:"linear-gradient(135deg,"+C.primaryColor+","+C.secondaryColor+")",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}},"🤖"),el("div",{style:{maxWidth:"78%",padding:"10px 14px",borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px",background:m.role==="user"?C.primaryColor:"#fff",color:m.role==="user"?"#fff":C.textColor,fontSize:14,lineHeight:1.7,whiteSpace:"pre-wrap"}},m.text))),chatLoad&&el("div",{style:{display:"flex",gap:8}},el("div",{style:{width:30,height:30,borderRadius:"50%",background:"linear-gradient(135deg,"+C.primaryColor+","+C.secondaryColor+")",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}},"🤖"),el("div",{style:{padding:"10px 16px",background:"#fff",borderRadius:14,fontSize:18,animation:"blink 1.4s infinite"}},"•••")),el("div",{ref:chatEnd})),el("div",{style:{padding:"10px 14px",borderTop:"1px solid #e2e8f0",background:"#fff",display:"flex",gap:8,flexShrink:0,paddingBottom:"max(10px,env(safe-area-inset-bottom))"}},el("input",{value:chatIn,onChange:e=>setChatIn(e.target.value),onKeyDown:e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendChat()}},placeholder:"질문을 입력하세요...",style:{flex:1,padding:"12px 16px",borderRadius:24,border:"2px solid #e2e8f0",fontSize:14}}),el("button",{onClick:sendChat,disabled:!chatIn.trim()||chatLoad,style:{width:44,height:44,borderRadius:"50%",border:"none",background:chatIn.trim()?C.primaryColor:"#e2e8f0",color:"#fff",fontSize:18}},"↑"))),
 el("div",{style:{background:"linear-gradient(160deg,"+C.primaryColor+","+C.secondaryColor+")",padding:"22px 20px 52px",textAlign:"center",position:"relative"}},C.heroImage&&el("img",{src:C.heroImage,style:{width:50,height:50,objectFit:"contain",position:"absolute",top:12,left:16}}),el("h1",{style:{fontFamily:C.titleFont,fontSize:22,color:"#fff",margin:0}},C.festivalName),el("p",{style:{color:"rgba(255,255,255,.8)",fontSize:12,marginTop:3,letterSpacing:2}},C.subtitle),el("p",{style:{color:"rgba(255,255,255,.9)",fontSize:13,marginTop:8}},"👋 ",el("b",null,user?.name),"님, 환영합니다!")),
