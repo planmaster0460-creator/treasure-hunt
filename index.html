@@ -17,7 +17,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script>
-// ─── localStorage polyfill for window.storage ───
 window.storage = {
   async get(key, shared) {
     const v = localStorage.getItem("st_" + key);
@@ -65,6 +64,8 @@ const DEFAULT_CONFIG = {
   festivalInfo: "2026 대전 사이언스 페스티벌은 대전광역시 엑스포시민광장 일대에서 개최됩니다.\n\n▶ 기간: 2026년 10월 15일 ~ 10월 20일\n▶ 장소: 대전 엑스포시민광장 및 과학문화거리\n▶ 주최: 대전광역시\n▶ 주관: 대전관광공사\n\n다양한 과학 체험 프로그램과 공연, 전시가 준비되어 있습니다.",
   apiKey: "",
   aiCharImage: null,
+  linkHome: { icon: "🌐", label: "홈페이지", url: "" },
+  linkSns: { icon: "📸", label: "SNS", url: "" },
   heroImage: null,
   stampImage: null,
   stampEmptyImage: null,
@@ -813,6 +814,40 @@ function App() {
           <textarea value={config.festivalInfo} onChange={e => saveConfig({ ...config, festivalInfo: e.target.value })} rows={14} style={{ width: "100%", padding: 14, borderRadius: 12, border: "2px solid #e2e8f0", fontSize: 14, lineHeight: 1.8, boxSizing: "border-box", resize: "vertical" }} placeholder="축제 정보를 자유롭게 입력하세요..." />
           <div style={{ marginTop: 10, padding: 12, background: "#ecfdf5", borderRadius: 10, fontSize: 11, color: "#065f46" }}>💡 축제 일정, 운영시간, 주차정보, 프로그램, 맛집, 편의시설 등을 상세히 작성하면 AI 답변 품질이 높아집니다.</div>
 
+          {/* Shortcut Links */}
+          <div style={{ marginTop: 20, background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", border: "2px solid #e0f2fe" }}>
+            <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: "#0369a1", display: "flex", alignItems: "center", gap: 6 }}>🔗 바로가기 링크 (하단 네비게이션)</h4>
+            {[
+              { key: "linkHome", title: "축제 홈페이지", defaultIcon: "🌐" },
+              { key: "linkSns", title: "축제 SNS", defaultIcon: "📸" },
+            ].map(item => {
+              const link = config[item.key] || { icon: item.defaultIcon, label: item.title, url: "" };
+              return (
+                <div key={item.key} style={{ padding: 14, background: "#f8fafc", borderRadius: 12, marginBottom: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 10 }}>{item.title}</div>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    <div style={{ width: 70 }}>
+                      <label style={{ fontSize: 10, color: "#64748b" }}>아이콘</label>
+                      <input value={link.icon} onChange={e => saveConfig({ ...config, [item.key]: { ...link, icon: e.target.value } })} style={{ width: "100%", padding: 8, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 18, textAlign: "center", boxSizing: "border-box" }} maxLength={2} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 10, color: "#64748b" }}>버튼 이름</label>
+                      <input value={link.label} onChange={e => saveConfig({ ...config, [item.key]: { ...link, label: e.target.value } })} placeholder="홈페이지" style={{ width: "100%", padding: 8, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, boxSizing: "border-box" }} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 10, color: "#64748b" }}>URL 주소</label>
+                    <input value={link.url} onChange={e => saveConfig({ ...config, [item.key]: { ...link, url: e.target.value } })} placeholder="https://" style={{ width: "100%", padding: 8, borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, boxSizing: "border-box", fontFamily: "monospace" }} />
+                  </div>
+                  <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: link.url ? "#10b981" : "#94a3b8" }} />
+                    <span style={{ fontSize: 10, color: link.url ? "#065f46" : "#94a3b8" }}>{link.url ? "설정됨 — 하단에 표시됩니다" : "미설정 — URL 입력 시 하단에 표시"}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
           {/* API Key section */}
           <div style={{ marginTop: 20, background: "#fff", borderRadius: 14, padding: 16, boxShadow: "0 1px 3px rgba(0,0,0,0.05)", border: "2px solid #fef3c7" }}>
             <h4 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: "#92400e", display: "flex", alignItems: "center", gap: 6 }}>🔑 AI 기능 설정 (외부 호스팅용)</h4>
@@ -1052,15 +1087,25 @@ function App() {
 
       {/* ─── BOTTOM NAV ─── */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#fff", borderTop: "1px solid #e8edf2", display: "flex", justifyContent: "space-around", alignItems: "flex-end", padding: "6px 0", paddingBottom: "max(6px, env(safe-area-inset-bottom))", zIndex: 100 }}>
-        <button onClick={() => setScreen("tour")} style={{ border: "none", background: "transparent", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: "pointer", color: screen === "tour" ? config.primaryColor : "#94a3b8", fontSize: 10, fontWeight: 600, padding: "4px 18px" }}>
-          <span style={{ fontSize: 20 }}>🗺</span>투어
+        {config.linkHome?.url && (
+          <a href={config.linkHome.url} target="_blank" rel="noopener noreferrer" style={{ border: "none", background: "transparent", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: "pointer", color: "#94a3b8", fontSize: 10, fontWeight: 600, padding: "4px 10px", textDecoration: "none" }}>
+            <span style={{ fontSize: 19 }}>{config.linkHome.icon || "🌐"}</span>{config.linkHome.label || "홈페이지"}
+          </a>
+        )}
+        <button onClick={() => setScreen("tour")} style={{ border: "none", background: "transparent", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: "pointer", color: screen === "tour" ? config.primaryColor : "#94a3b8", fontSize: 10, fontWeight: 600, padding: "4px 10px" }}>
+          <span style={{ fontSize: 19 }}>🗺</span>투어
         </button>
         <button onClick={() => { setScanResult(null); startScanner(); }} style={{ border: "none", background: `linear-gradient(135deg, ${config.primaryColor}, ${config.secondaryColor})`, width: 54, height: 54, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", marginTop: -22, boxShadow: `0 4px 20px ${config.primaryColor}44`, position: "relative" }}>
           <span style={{ fontSize: 24 }}>📷</span>
         </button>
-        <button onClick={() => setScreen("chat")} style={{ border: "none", background: "transparent", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: "pointer", color: "#94a3b8", fontSize: 10, fontWeight: 600, padding: "4px 18px" }}>
-          {config.aiCharImage ? <img src={config.aiCharImage} alt="" style={{ width: 22, height: 22, borderRadius: "50%", objectFit: "cover" }} /> : <span style={{ fontSize: 20 }}>🤖</span>}AI안내
+        <button onClick={() => setScreen("chat")} style={{ border: "none", background: "transparent", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: "pointer", color: "#94a3b8", fontSize: 10, fontWeight: 600, padding: "4px 10px" }}>
+          {config.aiCharImage ? <img src={config.aiCharImage} alt="" style={{ width: 21, height: 21, borderRadius: "50%", objectFit: "cover" }} /> : <span style={{ fontSize: 19 }}>🤖</span>}AI안내
         </button>
+        {config.linkSns?.url && (
+          <a href={config.linkSns.url} target="_blank" rel="noopener noreferrer" style={{ border: "none", background: "transparent", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, cursor: "pointer", color: "#94a3b8", fontSize: 10, fontWeight: 600, padding: "4px 10px", textDecoration: "none" }}>
+            <span style={{ fontSize: 19 }}>{config.linkSns.icon || "📸"}</span>{config.linkSns.label || "SNS"}
+          </a>
+        )}
       </div>
 
       <style>{`
